@@ -1,0 +1,16 @@
+{
+  "name": "digital-twin-nodejs",
+  "version": "1.0.0",
+  "description": "Digital Twin implementation in Node.js",
+  "main": "energy_manager.js",
+  "scripts": {
+    "manager": "node energy_manager.js",
+    "microwave": "node microwave_nodejs.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "axios": "^1.6.0",
+    "ws": "^8.14.2"
+  }
+}

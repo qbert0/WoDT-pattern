@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Tech Digital Twin Manager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { text-align: center; color: white; margin-bottom: 30px; }
+        .tech-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        .tech-python { background: #3776ab; color: white; }
+        .tech-nodejs { background: #339933; color: white; }
+        .tech-go { background: #00add8; color: white; }
+        .energy-stats {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            color: white;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .stat-card {
+            text-align: center;
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .stat-value { font-size: 2em; font-weight: bold; }
+        .section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .section-title {
+            font-size: 1.5em;
+            color: #667eea;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+            padding-left: 10px;
+        }
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        .device-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+        }
+        .device-tech {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-top: 10px;
+        }
+        .status-running { background: #ff6b6b; color: white; animation: pulse 1s infinite; }
+        .status-idle { background: #51cf66; color: white; }
+        .status-offline { background: #868e96; color: white; }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-breakfast {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            font-size: 1.2em;
+            width: 100%;
+        }
+        .current-task {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 5px;
+        }
+        select, input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 Multi-Technology Digital Twin Platform</h1>
+            <p>Python | Node.js | Go - Tất cả cùng giao tiếp và làm việc</p>
+        </div>
+
+        <div class="energy-stats" id="energyStats">
+            <div class="stat-card"><div class="stat-value" id="totalPower">0</div><div>Tổng công suất (W)</div></div>
+            <div class="stat-card"><div class="stat-value" id="currentUsage">0</div><div>Đang sử dụng (W)</div></div>
+            <div class="stat-card"><div class="stat-value" id="remainingPower">0</div><div>Còn lại (W)</div></div>
+            <div class="stat-card"><div class="stat-value" id="devicesCount">0</div><div>Thiết bị</div></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">🔌 Thêm Digital Twin</div>
+            <select id="techSelect">
+                <option value="python">🐍 Python (Port 3001)</option>
+                <option value="nodejs">🟢 Node.js (Port 3002)</option>
+                <option value="go">🔵 Go (Port 3003)</option>
+            </select>
+            <input type="text" id="ipInput" placeholder="IP Address" value="localhost">
+            <button onclick="addDevice()">➕ Thêm thiết bị</button>
+            <div id="addMessage" style="margin-top: 10px;"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">📱 Digital Twins đã kết nối</div>
+            <div id="devicesList" class="device-grid"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">🍳 Điều khiển bữa sáng</div>
+            <button class="btn-breakfast" onclick="startBreakfast()" id="breakfastBtn">🍳 LÀM BỮA SÁNG</button>
+            <div id="currentTaskInfo"></div>
+            <div id="queueInfo"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:3000');
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'devices_update') {
+                    updateDevicesList(data.devices);
+                } else if (data.type === 'task_started') {
+                    showMessage(`🔄 Đang chạy: ${data.task.deviceName} (${data.technology})`, 'info');
+                } else if (data.type === 'task_completed') {
+                    showMessage(`✅ Hoàn thành: ${data.deviceName}`, 'success');
+                } else if (data.type === 'breakfast_completed') {
+                    showMessage('🎉 Hoàn thành bữa sáng!', 'success');
+                    document.getElementById('breakfastBtn').disabled = false;
+                }
+            };
+        }
+
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/devices');
+                const data = await response.json();
+                updateDevicesList(data.devices);
+                
+                const energyRes = await fetch('/api/energy-info');
+                const energy = await energyRes.json();
+                document.getElementById('totalPower').textContent = energy.totalPowerLimit;
+                document.getElementById('currentUsage').textContent = energy.currentPowerUsage;
+                document.getElementById('remainingPower').textContent = energy.remainingPower;
+                document.getElementById('devicesCount').textContent = energy.devicesCount;
+                
+                if (energy.breakfastMode) {
+                    document.getElementById('breakfastBtn').disabled = true;
+                    document.getElementById('breakfastBtn').textContent = '🍳 ĐANG CHẾ BIẾN...';
+                } else {
+                    document.getElementById('breakfastBtn').disabled = false;
+                    document.getElementById('breakfastBtn').textContent = '🍳 LÀM BỮA SÁNG';
+                }
+                
+                if (energy.currentTask) {
+                    document.getElementById('currentTaskInfo').innerHTML = `
+                        <div class="current-task">
+                            <strong>🔄 Đang thực hiện:</strong><br>
+                            📱 ${energy.currentTask.deviceName}<br>
+                            ⚡ Công suất: ${energy.currentTask.estimatedPower}W<br>
+                            ⏱️ Thời gian: ${energy.currentTask.duration}s
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('currentTaskInfo').innerHTML = '';
+                }
+                
+                if (energy.queueLength > 0) {
+                    document.getElementById('queueInfo').innerHTML = `
+                        <div style="background: #e7f3ff; padding: 10px; margin-top: 10px; border-radius: 5px;">
+                            📋 Hàng chờ: ${energy.queueLength} nhiệm vụ đang chờ
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('queueInfo').innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Lỗi:', error);
+            }
+        }
+
+        function updateDevicesList(devices) {
+            const container = document.getElementById('devicesList');
+            if (devices.length === 0) {
+                container.innerHTML = '<p style="color: #999;">Chưa có thiết bị nào. Hãy thêm thiết bị!</p>';
+                return;
+            }
+            
+            container.innerHTML = devices.map(device => `
+                <div class="device-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="device-name" style="font-weight: bold;">${device.name}</div>
+                        <span class="tech-badge tech-${device.technology}">${device.technology.toUpperCase()}</span>
+                    </div>
+                    <div class="device-tech">ID: ${device.id}</div>
+                    <div class="device-tech">📍 ${device.ip}:${device.port}</div>
+                    <div>
+                        <span class="status-badge status-${device.status}">
+                            ${device.status === 'running' ? '🟢 ĐANG CHẠY' : 
+                              device.status === 'idle' ? '⚪ SẴN SÀNG' : 
+                              device.status === 'offline' ? '⚫ OFFLINE' : '🔵 ' + device.status}
+                        </span>
+                    </div>
+                    <div class="device-tech">⚡ Công suất: ${device.powerConsumption}W</div>
+                    <button onclick="removeDevice('${device.id}')" style="margin-top: 10px; background: #dc3545; padding: 5px 10px; font-size: 0.9em;">
+                        🗑️ Xóa
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function addDevice() {
+            const tech = document.getElementById('techSelect').value;
+            const ip = document.getElementById('ipInput').value;
+            let port = 3001;
+            if (tech === 'nodejs') port = 3002;
+            if (tech === 'go') port = 3003;
+            
+            const response = await fetch('/api/add-device', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ip, port, technology: tech })
+            });
+            const data = await response.json();
+            showMessage(data.message, data.success ? 'success' : 'error');
+            if (data.success) fetchData();
+        }
+
+        async function removeDevice(deviceId) {
+            if (confirm('Bạn có chắc muốn xóa thiết bị này?')) {
+                const response = await fetch('/api/remove-device', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deviceId })
+                });
+                const data = await response.json();
+                showMessage(data.message, data.success ? 'success' : 'error');
+                if (data.success) fetchData();
+            }
+        }
+
+        async function startBreakfast() {
+            const response = await fetch('/api/start-breakfast', { method: 'POST' });
+            const data = await response.json();
+            showMessage(data.message, data.success ? 'success' : 'error');
+            if (data.success) fetchData();
+        }
+
+        function showMessage(message, type) {
+            const msgDiv = document.getElementById('addMessage');
+            const color = type === 'success' ? '#d4edda' : '#f8d7da';
+            const textColor = type === 'success' ? '#155724' : '#721c24';
+            msgDiv.innerHTML = `<div style="background: ${color}; color: ${textColor}; padding: 10px; border-radius: 5px;">${message}</div>`;
+            setTimeout(() => msgDiv.innerHTML = '', 3000);
+        }
+
+        connectWebSocket();
+        setInterval(fetchData, 2000);
+        fetchData();
+    </script>
+</body>
+</html>
