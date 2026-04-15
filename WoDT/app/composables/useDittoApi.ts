@@ -1,4 +1,4 @@
-import type { DittoThing, OverviewResponse } from '~/types/ditto'
+import type { DittoThing, OverviewResponse, SystemActionsResponse, ThingActionsResponse } from '~/types/ditto'
 
 export const useDittoApi = () => {
   const getOverview = () => {
@@ -35,11 +35,54 @@ export const useDittoApi = () => {
     })
   }
 
+  const getThingActions = (thingId: string) => {
+    return $fetch<ThingActionsResponse>(`/api/digital-twin/things/${encodeURIComponent(thingId)}/actions`)
+  }
+
+  const executeThingTask = (
+    thingId: string,
+    taskId: string,
+    payload: Record<string, any> = {}
+  ) => {
+    return $fetch(`/api/digital-twin/things/${encodeURIComponent(thingId)}/tasks/${encodeURIComponent(taskId)}/execute`, {
+      method: 'POST',
+      body: payload
+    })
+  }
+
+  const executeThingGoal = (
+    thingId: string,
+    goalId: string
+  ) => {
+    return $fetch(`/api/digital-twin/things/${encodeURIComponent(thingId)}/goals/${encodeURIComponent(goalId)}/execute`, {
+      method: 'POST'
+    })
+  }
+
+  const getSystemActions = () => {
+    return $fetch<SystemActionsResponse>('/api/system/actions')
+  }
+
+  const executeSystemGoal = (
+    goalId: string,
+    payload: Record<string, any> = {}
+  ) => {
+    return $fetch(`/api/system/goals/${encodeURIComponent(goalId)}/execute`, {
+      method: 'POST',
+      body: payload
+    })
+  }
+
   return {
     getOverview,
     getAllThings,
     getThing,
-    sendMessage
+    sendMessage,
+    getThingActions,
+    executeThingTask,
+    executeThingGoal,
+    getSystemActions,
+    executeSystemGoal
   }
 
   

@@ -18,59 +18,70 @@ const { getThing } = useDittoApi()
 
 const thingId = computed(() => String(route.params.id))
 
-// Logic auto-select Policy trên Sidebar
-watch(() => dittoStore.policies, () => {
-  // Lấy trực tiếp từ thingsByPolicy trong store thay vì overviewData
-  const allThingsByPolicy = dittoStore.thingsByPolicy || {}
-  
-  // TypeScript sẽ tự hiểu 'things' là mảng { id: string; policyId: string }[] 
-  // dựa theo Record<string, { id: string; policyId: string }[]> trong State của bạn
-  const foundPolicy = Object.entries(allThingsByPolicy).find(([_, things]) =>
-    things.some(t => t.id === thingId.value)
-  )
-  
-  if (foundPolicy) {
-    dittoStore.setSelectedPolicy(foundPolicy[0]) // foundPolicy[0] chính là cái key (policyId)
-  }
-}, { immediate: true })
+watch(
+  () => dittoStore.policies,
+  () => {
+    const allThingsByPolicy = dittoStore.thingsByPolicy || {}
+    const foundPolicy = Object.entries(allThingsByPolicy).find(([_, things]) =>
+      things.some(t => t.id === thingId.value)
+    )
 
+    if (foundPolicy) {
+      dittoStore.setSelectedPolicy(foundPolicy[0])
+    }
+  },
+  { immediate: true }
+)
 
-// Gọi API lần đầu
 const fetchInitialThing = async () => {
   try {
     thingStore.setPending(true)
     thingStore.setError(null)
     const data = await getThing(thingId.value)
     thingStore.setThing(data)
-  } catch (e) {
-    thingStore.setError(e)
+  } catch (error) {
+    thingStore.setError(error)
   } finally {
     thingStore.setPending(false)
   }
 }
 
-// Xử lý Real-time (SSE)
 let eventSource: EventSource | null = null
+
+const parseSseThingUpdate = (rawData: string) => {
+  const payload = rawData?.trim()
+
+  if (!payload) {
+    return null
+  }
+
+  try {
+    return JSON.parse(payload)
+  } catch (error) {
+    console.warn('Bo qua SSE payload khong hop le:', payload, error)
+    return null
+  }
+}
 
 const setupRealtime = () => {
   eventSource = new EventSource(`/api/ditto/things/${encodeURIComponent(thingId.value)}/stream`)
 
   eventSource.onmessage = (event) => {
-    try {
-      const updatedThing = JSON.parse(event.data)
-      if (updatedThing.features) {
-        // Cập nhật thẳng vào store
-        thingStore.updateFeatures(updatedThing.features)
-      }
-    } catch (err) {
-      console.error('Lỗi phân tích data SSE:', err)
+    const updatedThing = parseSseThingUpdate(event.data)
+
+    if (!updatedThing?.features) {
+      return
     }
+
+    thingStore.updateFeatures(updatedThing.features)
   }
 }
 
-// Load data khi chuyển trang / vào trang
 watch(thingId, async () => {
-  if (eventSource) eventSource.close()
+  if (eventSource) {
+    eventSource.close()
+  }
+
   await fetchInitialThing()
   setupRealtime()
 })
@@ -81,8 +92,10 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  if (eventSource) eventSource.close()
-  // Reset store khi rời trang nếu cần
+  if (eventSource) {
+    eventSource.close()
+  }
+
   thingStore.setThing(null)
 })
 </script>

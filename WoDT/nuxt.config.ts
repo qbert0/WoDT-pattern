@@ -18,6 +18,9 @@ export default defineNuxtConfig({
     dittoWsUrl: process.env.NUXT_PUBLIC_DITTO_WS_URL,
     dittoUsername: process.env.NUXT_PUBLIC_DITTO_USERNAME,
     dittoPassword: process.env.NUXT_PUBLIC_DITTO_PASSWORD,
+    neo4jUri: process.env.NEO4J_URI,
+    neo4jUser: process.env.NEO4J_USER,
+    neo4jPassword: process.env.NEO4J_PASSWORD,
 
     public: {
       appName: 'Smart Home Dashboard'

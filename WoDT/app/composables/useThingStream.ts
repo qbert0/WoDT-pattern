@@ -1,13 +1,27 @@
 import { ref, onBeforeUnmount } from 'vue'
 import type { Ref } from 'vue'
-import type { DittoThing } from '~/types/ditto' // Đảm bảo đường dẫn này đúng với dự án của bạn
+import type { DittoThing } from '~/types/ditto'
 
 export const useThingStream = (thingId: Ref<string>, thing: Ref<DittoThing | null>) => {
   const eventSource = ref<EventSource | null>(null)
   const isConnected = ref<boolean>(false)
 
+  const parseSseThingUpdate = (rawData: string) => {
+    const payload = rawData?.trim()
+
+    if (!payload) {
+      return null
+    }
+
+    try {
+      return JSON.parse(payload)
+    } catch (error) {
+      console.warn('Bo qua SSE payload khong hop le:', payload, error)
+      return null
+    }
+  }
+
   const startStream = () => {
-    // Đảm bảo ngắt kết nối cũ (nếu có) trước khi mở luồng mới
     stopStream()
 
     if (!thingId.value) return
@@ -17,30 +31,27 @@ export const useThingStream = (thingId: Ref<string>, thing: Ref<DittoThing | nul
 
     eventSource.value.onopen = () => {
       isConnected.value = true
-      console.log(`🟢 Đã kết nối SSE cho Thing: ${thingId.value}`)
+      console.log(`Da ket noi SSE cho Thing: ${thingId.value}`)
     }
 
     eventSource.value.onmessage = (event) => {
-      try {
-        const updatedThing = JSON.parse(event.data)
-        
-        // Cập nhật trực tiếp vào Ref được truyền từ Component
-        if (thing.value && updatedThing.features) {
-          thing.value = {
-            ...thing.value,
-            features: {
-              ...thing.value.features,
-              ...updatedThing.features
-            }
-          }
+      const updatedThing = parseSseThingUpdate(event.data)
+
+      if (!thing.value || !updatedThing?.features) {
+        return
+      }
+
+      thing.value = {
+        ...thing.value,
+        features: {
+          ...thing.value.features,
+          ...updatedThing.features
         }
-      } catch (err) {
-        console.error('Lỗi phân tích data SSE:', err)
       }
     }
 
     eventSource.value.onerror = () => {
-      console.error('🔴 Mất kết nối SSE. Trình duyệt đang tự động kết nối lại...')
+      console.error('Mat ket noi SSE. Trinh duyet dang tu dong ket noi lai...')
       isConnected.value = false
     }
   }
@@ -50,11 +61,10 @@ export const useThingStream = (thingId: Ref<string>, thing: Ref<DittoThing | nul
       eventSource.value.close()
       eventSource.value = null
       isConnected.value = false
-      console.log(`⭕ Đã ngắt kết nối SSE cho Thing: ${thingId.value}`)
+      console.log(`Da ngat ket noi SSE cho Thing: ${thingId.value}`)
     }
   }
 
-  // Tự động dọn dẹp khi người dùng rời khỏi trang
   onBeforeUnmount(() => {
     stopStream()
   })

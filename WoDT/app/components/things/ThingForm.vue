@@ -5,7 +5,7 @@
       <div class="px-6 py-4 flex items-center justify-between">
         <div>
           <h2 class="text-xl font-bold text-slate-800">
-            {{ store.thing?.thingId || 'Đang tải...' }}
+            {{ store.thing?.thingId || 'Dang tai...' }}
           </h2>
           <p class="text-sm text-slate-500">
             Policy: {{ store.thing?.policyId || '...' }}
@@ -20,7 +20,7 @@
               store.activeTab === 'ui' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'
             ]"
           >
-            🎨 Giao diện
+            UI
           </button>
           <button
             @click="store.setActiveTab('json')"
@@ -29,23 +29,23 @@
               store.activeTab === 'json' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200/50'
             ]"
           >
-            < > JSON Raw
+            JSON Raw
           </button>
         </nav>
       </div>
     </div>
 
     <div v-if="store.pending" class="flex-1 flex items-center justify-center p-6 text-slate-400">
-      <span class="animate-pulse">Đang tải dữ liệu...</span>
+      <span class="animate-pulse">Dang tai du lieu...</span>
     </div>
     
     <div v-else-if="store.error" class="m-6 p-4 bg-red-50 text-red-600 rounded-lg">
-      Lỗi tải dữ liệu thiết bị.
+      Loi tai du lieu thiet bi.
     </div>
 
     <div v-else-if="store.hasData" class="flex-1 p-6 overflow-y-auto">
       <Transition name="fade" mode="out-in">
-        <ThingUI v-if="store.activeTab === 'ui'" />
+        <ThingUI v-if="store.activeTab === 'ui'" :thing-id="store.thing?.thingId || ''" />
         <ThingJson v-else-if="store.activeTab === 'json'" />
       </Transition>
     </div>

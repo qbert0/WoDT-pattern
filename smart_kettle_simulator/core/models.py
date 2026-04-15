@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 @dataclass
@@ -10,10 +10,7 @@ class KettleState:
     temperature: float = 25.0
     water_level: int = 50
     power_status: str = "off"
-    heating_status: str = "idle"
-    power_consumption: int = 0
     target_temperature: int = 100
-    total_boils: int = 0
     updated_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -23,3 +20,13 @@ class KettleState:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class TaskPlan:
+    task_id: str
+    task_name: str
+    task_command: str
+    goal_id: str
+    goal_name: str
+    depends_on: List[str] = field(default_factory=list)

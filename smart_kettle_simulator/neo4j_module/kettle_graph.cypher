@@ -1,41 +1,107 @@
-// Kettle capability graph seed
-CREATE (k:Kettle {
-  thingId: 'smart-home:kettle-01',
-  model: 'RK-18',
-  maxCapacity: 1.7,
-  maxPower: 2000
-});
+// =========================
+// KETTLE AGENT
+// =========================
+MERGE (ak:Agent {id: 'A_KETTLE'})
+SET ak.name = 'KettleAgent';
 
-CREATE (c1:Capability {name: 'power_control', description: 'Bat/tat nguon'})
-CREATE (c2:Capability {name: 'temperature_sensing', description: 'Do nhiet do'})
-CREATE (c3:Capability {name: 'water_level_sensing', description: 'Do muc nuoc'})
-CREATE (c4:Capability {name: 'power_measurement', description: 'Do cong suat'})
-CREATE (c5:Capability {name: 'temperature_control', description: 'Dat nhiet do muc tieu'});
 
-MATCH (k:Kettle {thingId: 'smart-home:kettle-01'})
-MATCH (c1:Capability {name: 'power_control'})
-MATCH (c2:Capability {name: 'temperature_sensing'})
-MATCH (c3:Capability {name: 'water_level_sensing'})
-MATCH (c4:Capability {name: 'power_measurement'})
-MATCH (c5:Capability {name: 'temperature_control'})
-CREATE (k)-[:HAS_CAPABILITY]->(c1)
-CREATE (k)-[:HAS_CAPABILITY]->(c2)
-CREATE (k)-[:HAS_CAPABILITY]->(c3)
-CREATE (k)-[:HAS_CAPABILITY]->(c4)
-CREATE (k)-[:HAS_CAPABILITY]->(c5);
+// =========================
+// KETTLE GOALS
+// =========================
+MERGE (gk_root:Goal {id: 'G_KETTLE_ROOT'})
+SET gk_root.name = 'ControlThermalOutput',
+    gk_root.description = 'Dieu khien trang thai nhiet cua am dun nuoc';
 
-SET c1.ditto_path = '/features/power/properties/status',
-    c1.commands = ['turn_on', 'turn_off'];
-SET c2.ditto_path = '/features/water/properties/temperature',
-    c2.unit = 'celsius',
-    c2.range = [25, 100];
-SET c3.ditto_path = '/features/water/properties/waterLevel',
-    c3.unit = 'percent',
-    c3.range = [0, 100];
-SET c4.ditto_path = '/features/power/properties/powerConsumption',
-    c4.unit = 'watt',
-    c4.range = [0, 2000];
-SET c5.ditto_path = '/features/water/properties/targetTemperature',
-    c5.commands = ['set_target_temperature'],
-    c5.unit = 'celsius',
-    c5.range = [70, 100];
+MERGE (gk1:Goal {id: 'G_K1'})
+SET gk1.name = 'IncreaseWaterTemperature',
+    gk1.description = 'Tang nhiet do nuoc theo yeu cau';
+
+MERGE (gk2:Goal {id: 'G_K2'})
+SET gk2.name = 'DecreaseWaterTemperature',
+    gk2.description = 'Giam hoac dung qua trinh gia nhiet cua nuoc';
+
+MERGE (gk11:Goal {id: 'G_K1_1'})
+SET gk11.name = 'HeatWaterToTargetTemperature',
+    gk11.description = 'Dun nuoc den nhiet do muc tieu';
+
+MERGE (gk12:Goal {id: 'G_K1_2'})
+SET gk12.name = 'EnsureSufficientWaterVolume',
+    gk12.description = 'Dam bao luong nuoc du theo yeu cau truoc hoac trong khi dun';
+
+
+// =========================
+// GOAL REFINEMENT
+// =========================
+MATCH (root:Goal {id:'G_KETTLE_ROOT'}),
+      (gk1:Goal {id:'G_K1'}),
+      (gk2:Goal {id:'G_K2'})
+MERGE (root)-[r1:REFINES]->(gk1)
+SET r1.type = 'OR';
+
+MERGE (root)-[r2:REFINES]->(gk2)
+SET r2.type = 'OR';
+
+MATCH (gk1:Goal {id:'G_K1'}),
+      (gk11:Goal {id:'G_K1_1'}),
+      (gk12:Goal {id:'G_K1_2'})
+MERGE (gk1)-[r3:REFINES]->(gk11)
+SET r3.type = 'AND';
+
+MERGE (gk1)-[r4:REFINES]->(gk12)
+SET r4.type = 'AND';
+
+
+// =========================
+// DELEGATION
+// =========================
+MATCH (root:Goal {id:'G_KETTLE_ROOT'}),
+      (ak:Agent {id:'A_KETTLE'})
+MERGE (root)-[:DELEGATED_TO]->(ak);
+
+
+// =========================
+// KETTLE TASKS
+// =========================
+MERGE (tk1:Task {id: 'T_K1'})
+SET tk1.name = 'TurnOn',
+    tk1.command = 'TURN_ON',
+    tk1.inputParameters = '',
+    tk1.outputParameters = 'powerState: boolean';
+
+MERGE (tk2:Task {id: 'T_K2'})
+SET tk2.name = 'TurnOff',
+    tk2.command = 'TURN_OFF',
+    tk2.inputParameters = '',
+    tk2.outputParameters = 'powerState: boolean';
+
+MERGE (tk3:Task {id: 'T_K3'})
+SET tk3.name = 'SetTargetTemperature',
+    tk3.command = 'SET_TEMP',
+    tk3.inputParameters = 'temperature: float',
+    tk3.outputParameters = 'targetTemp: float';
+
+MERGE (tk4:Task {id: 'T_K4'})
+SET tk4.name = 'SetWaterVolume',
+    tk4.command = 'SET_VOLUME',
+    tk4.inputParameters = 'volume: float',
+    tk4.outputParameters = 'targetVolume: float';
+
+
+// =========================
+// OPERATIONALIZATION
+// =========================
+MATCH (gk11:Goal {id:'G_K1_1'}),
+      (tk1:Task {id:'T_K1'})
+MERGE (gk11)-[:OPERATIONALIZED_BY]->(tk1);
+
+MATCH (gk11:Goal {id:'G_K1_1'}),
+      (tk3:Task {id:'T_K3'})
+MERGE (gk11)-[:OPERATIONALIZED_BY]->(tk3);
+
+MATCH (gk12:Goal {id:'G_K1_2'}),
+      (tk4:Task {id:'T_K4'})
+MERGE (gk12)-[:OPERATIONALIZED_BY]->(tk4);
+
+MATCH (gk2:Goal {id:'G_K2'}),
+      (tk2:Task {id:'T_K2'})
+MERGE (gk2)-[:OPERATIONALIZED_BY]->(tk2);

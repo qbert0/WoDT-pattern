@@ -11,3 +11,9 @@ def test_set_target_temperature_changes_state():
     simulator = KettleSimulator()
     state = simulator.apply_command("set_target_temperature", {"temperature": 95})
     assert state["target_temperature"] == 95
+
+
+def test_set_water_level_changes_state():
+    simulator = KettleSimulator()
+    state = simulator.apply_command("set_water_level", {"water_level": 80})
+    assert state["water_level"] == 80

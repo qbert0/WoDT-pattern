@@ -5,9 +5,9 @@ import time
 from typing import Any, Callable, Dict, Optional
 
 
-class DittoMQTTClient:
+class KettleMQTTBridge:
     """
-    Gui telemetry len Ditto qua MQTT va nhan command tu Ditto gui ve.
+    Cau noi MQTT chung giua simulator va digital twin.
     """
 
     def __init__(
@@ -17,24 +17,40 @@ class DittoMQTTClient:
         thing_id: str,
         username: str = "",
         password: str = "",
-        on_command: Optional[Callable[[str, Dict[str, Any]], Dict[str, Any] | None]] = None,
+        on_device_command: Optional[Callable[[str, Dict[str, Any]], Dict[str, Any] | None]] = None,
+        on_state: Optional[Callable[[Dict[str, Any]], None]] = None,
+        on_response: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> None:
         self.broker_host = broker_host
         self.broker_port = broker_port
         self.thing_id = thing_id
         self.username = username
         self.password = password
-        self.on_command = on_command
+        self.on_device_command = on_device_command
+        self.on_state = on_state
+        self.on_response = on_response
         self.client = None
+        self.state_topic = f"kettle/{self.thing_id}/state"
+        self.command_topic = f"kettle/{self.thing_id}/commands"
+        self.response_topic = f"kettle/{self.thing_id}/responses"
+        self.mode: str | None = None
 
-    def connect(self) -> bool:
+    def connect_device(self) -> bool:
+        self.mode = "device"
+        return self._connect()
+
+    def connect_twin(self) -> bool:
+        self.mode = "twin"
+        return self._connect()
+
+    def _connect(self) -> bool:
         try:
             import paho.mqtt.client as mqtt
         except ImportError:
             print("Missing dependency: paho-mqtt")
             return False
 
-        self.client = mqtt.Client(client_id=f"ditto_bridge_{self.thing_id}")
+        self.client = mqtt.Client(client_id=f"kettle_bridge_{self.mode}_{self.thing_id}")
         if self.username:
             self.client.username_pw_set(self.username, self.password)
         self.client.on_connect = self._on_connect
@@ -46,41 +62,66 @@ class DittoMQTTClient:
 
     def _on_connect(self, client, _userdata, _flags, rc):
         if rc != 0:
-            print(f"[DittoMQTT] Connect failed: {rc}")
+            print(f"[MQTTBridge] Connect failed: {rc}")
             return
-        command_topic = f"ditto/things/{self.thing_id}/inbox/messages/+"
-        client.subscribe(command_topic)
-        print(f"[DittoMQTT] Listening on {command_topic}")
+
+        if self.mode == "device":
+            client.subscribe(self.command_topic)
+            print(f"[MQTTBridge] Device listening on {self.command_topic}")
+        elif self.mode == "twin":
+            client.subscribe(self.state_topic)
+            client.subscribe(self.response_topic)
+            print(f"[MQTTBridge] Twin listening on {self.state_topic} and {self.response_topic}")
 
     def _on_message(self, client, _userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            commands = payload.get("value", {})
-            reply_topic = f"{msg.topic}/response"
-
-            if not isinstance(commands, dict):
-                return
-
-            for command, params in commands.items():
+            if self.mode == "device" and msg.topic == self.command_topic:
+                command = payload.get("command")
+                params = payload.get("params", {})
                 result = None
-                if self.on_command:
-                    result = self.on_command(command, params or {})
-                response = {"status": 200, "command": command, "result": result or {}}
-                client.publish(reply_topic, json.dumps(response), qos=0)
+                if self.on_device_command and command:
+                    result = self.on_device_command(command, params)
+                self.publish_response(
+                    {
+                        "status": 200,
+                        "command": command,
+                        "result": result or {},
+                    }
+                )
+            elif self.mode == "twin" and msg.topic == self.state_topic:
+                if self.on_state:
+                    self.on_state(payload)
+            elif self.mode == "twin" and msg.topic == self.response_topic:
+                if self.on_response:
+                    self.on_response(payload)
         except Exception as exc:
-            error_response = {"status": 500, "message": str(exc)}
-            client.publish(f"{msg.topic}/response", json.dumps(error_response), qos=0)
+            self.publish_response({"status": 500, "message": str(exc)})
 
-    def publish_state(self, ditto_payload: Dict[str, Any]) -> None:
+    def publish_state(self, state_payload: Dict[str, Any]) -> None:
         if not self.client:
             return
-        for feature_name, properties in ditto_payload.items():
-            topic = f"ditto/things/{self.thing_id}/features/{feature_name}/properties"
-            self.client.publish(topic, json.dumps({"value": properties}), qos=1)
-            time.sleep(0.05)
+        self.client.publish(self.state_topic, json.dumps(state_payload), qos=1)
+        time.sleep(0.05)
+
+    def publish_command(self, command: str, params: Dict[str, Any] | None = None) -> None:
+        if not self.client:
+            return
+        payload = {"command": command, "params": params or {}}
+        self.client.publish(self.command_topic, json.dumps(payload), qos=1)
+        time.sleep(0.05)
+
+    def publish_response(self, response_payload: Dict[str, Any]) -> None:
+        if not self.client:
+            return
+        self.client.publish(self.response_topic, json.dumps(response_payload), qos=1)
+        time.sleep(0.05)
 
     def disconnect(self) -> None:
         if not self.client:
             return
         self.client.loop_stop()
         self.client.disconnect()
+
+
+DittoMQTTClient = KettleMQTTBridge
