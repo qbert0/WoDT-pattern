@@ -1,0 +1,1 @@
+"""Eclipse Ditto integration layer."""

@@ -1,103 +1,34 @@
-# main.py
-import time
-from simulator import KettleSimulator
-from business_logic import BusinessLogic
-from mqtt_bridge import MQTTBridge
-from config import *
+# neo4j_simple.py
+from neo4j import GraphDatabase
 
-class SmartKettleSystem:
-    """Hệ thống hoàn chỉnh - Điều phối 3 module"""
+class KettleKnowledge:
+    def __init__(self, uri, user, password):
+        self.driver = GraphDatabase.driver(uri, auth=(user, password))
     
-    def __init__(self):
-        self.simulator = None
-        self.business_logic = None
-        self.mqtt_bridge = None
-        self.running = True
-        
-    def on_simulator_event(self, event_type: str, data):
-        """Callback từ simulator -> gửi sang business logic"""
-        if self.business_logic:
-            self.business_logic.process_simulator_event(event_type, data)
+    def get_feature_properties(self, thing_id, feature_name):
+        """Lấy danh sách properties của một feature"""
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (k:Kettle {thingId: $thing_id})-[:HAS_FEATURE]->(f:Feature {name: $feature})
+                MATCH (f)-[:HAS_PROPERTY]->(p:Property)
+                RETURN p.name as name, p.type as type, p.unit as unit, p.range as range
+            """, thing_id=thing_id, feature=feature_name)
+            return [record.data() for record in result]
     
-    def on_business_data_ready(self, ditto_data):
-        """Callback từ business logic -> dữ liệu đã format, gửi lên MQTT bridge"""
-        if self.mqtt_bridge:
-            self.mqtt_bridge.send_telemetry(ditto_data)
-    
-    def on_ditto_command(self, command: str, params):
-        """Callback từ MQTT bridge -> nhận lệnh từ Ditto, xử lý qua business logic và gửi xuống simulator"""
-        if self.business_logic and self.simulator:
-            simulator_command = self.business_logic.process_ditto_command(command, params)
-            if simulator_command:
-                cmd = simulator_command["command"]
-                cmd_params = simulator_command["params"]
-                
-                print(f"\n[Main] 📤 Thực thi lệnh: {cmd}")
-                
-                if cmd == "turn_on":
-                    self.simulator.turn_on()
-                elif cmd == "turn_off":
-                    self.simulator.turn_off()
-                elif cmd == "set_target_temperature":
-                    temp = cmd_params.get("temperature", 100)
-                    self.simulator.set_target_temperature(temp)
-                elif cmd == "get_status":
-                    state = self.simulator.get_state()
-                    print(f"\n📊 TRẠNG THÁI HIỆN TẠI:")
-                    print(f"   Nhiệt độ: {state['temperature']}°C")
-                    print(f"   Trạng thái nguồn: {'BẬT' if state['power_status'] == 'on' else 'TẮT'}")
-                    print(f"   Chế độ: {state['heating_status']}")
-                    print(f"   Công suất: {state['power_consumption']}W")
-    
-    def start(self):
-        """Khởi động hệ thống"""
-        print("\n" + "="*70)
-        print("KHỞI ĐỘNG HỆ THỐNG SMART KETTLE")
-        print("="*70)
-        
-        # 1. MQTT bridge
-        print("\n[1/3] Khởi tạo MQTT Bridge...")
-        self.mqtt_bridge = MQTTBridge(
-            broker_host=DITTO_MQTT_BROKER,
-            broker_port=DITTO_MQTT_PORT,
-            thing_id=THING_ID,
-            on_command_received=self.on_ditto_command
-        )
-        
-        # 2. Business logic
-        print("[2/3] Khởi tạo Business Logic...")
-        self.business_logic = BusinessLogic(
-            on_data_to_send=self.on_business_data_ready
-        )
-        
-        # 3. Simulator
-        print("[3/3] Khởi tạo Simulator...")
-        self.simulator = KettleSimulator(
-            on_state_change=self.on_simulator_event
-        )
-        
-        print("\n✅ HỆ THỐNG ĐÃ SẴN SÀNG")
-        print("="*70)
-        print("\nLuồng dữ liệu nội bộ:")
-        print("  Simulator ──callback──> BusinessLogic ──callback──> MQTTBridge")
-        print("  MQTTBridge ──callback──> Main ──gọi trực tiếp──> Simulator")
-        print("="*70)
-        
-        # Chạy simulator (blocking - sẽ hiện prompt điều khiển)
-        self.simulator.run()
-        
-        # Dọn dẹp khi kết thúc
-        self.stop()
-    
-    def stop(self):
-        """Dừng hệ thống"""
-        print("\n[Main] Đang dừng hệ thống...")
-        if self.simulator:
-            self.simulator.stop()
-        if self.mqtt_bridge:
-            self.mqtt_bridge.disconnect()
-        print("[Main] Hệ thống đã dừng")
+    def get_all_features(self, thing_id):
+        """Lấy tất cả feature của ấm"""
+        with self.driver.session() as session:
+            result = session.run("""
+                MATCH (k:Kettle {thingId: $thing_id})-[:HAS_FEATURE]->(f:Feature)
+                RETURN f.name as name, f.description as description
+            """, thing_id=thing_id)
+            return [record.data() for record in result]
 
-if __name__ == "__main__":
-    system = SmartKettleSystem()
-    system.start()
+# Sử dụng
+kg = KettleKnowledge("bolt://100.104.220.45:7687", "neo4j", "password123")
+print(kg.get_feature_properties("smart-home:kettle-01", "water"))
+# Output: [
+#   {'name': 'temperature', 'type': 'number', 'unit': 'celsius', 'range': [25, 100]},
+#   {'name': 'waterLevel', 'type': 'number', 'unit': 'percent', 'range': [0, 100]},
+#   {'name': 'targetTemperature', 'type': 'number', 'unit': 'celsius', 'range': [70, 100]}
+# ]

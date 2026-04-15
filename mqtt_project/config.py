@@ -12,6 +12,11 @@ DITTO_URL = "http://100.104.220.45:8080/api/2"
 USERNAME = "ditto"
 PASSWORD = "ditto"
 
+# Cấu hình Neo4j (vẫn giữ nguyên)
+NEO4J_URI = "bolt://100.104.220.45:7687"  
+NEO4J_USER = "neo4j"
+NEO4J_PASSWORD = "password123"
+
 # Thing ID
 THING_ID = "smart-home:kettle-01"
 

@@ -1,0 +1,5 @@
+from smart_kettle_simulator.main import main
+
+
+if __name__ == "__main__":
+    main()
