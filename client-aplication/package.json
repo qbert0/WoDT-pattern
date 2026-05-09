@@ -10,9 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "d3-force": "^3.0.0",
     "lucide-react": "^0.292.0",
+    "neo4j-driver": "^6.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-force-graph-2d": "^1.29.1",
     "react-router-dom": "^7.14.2",
     "recharts": "^2.15.4"
   },

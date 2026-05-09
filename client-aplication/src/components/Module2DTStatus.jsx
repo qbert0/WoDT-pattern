@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import KGGraph from './KGGraph';
 
 const BASE_URL = 'http://35.240.154.27:8080/api/2';
 const DEFAULT_AUTH = btoa('ditto:ditto');
@@ -34,6 +35,17 @@ const Module2DTStatus = () => {
   const [messagePayload, setMessagePayload] = useState('{}');
   const [messagesLog, setMessagesLog] = useState([]); // { time, dir, subject, payload }
   const [msgStatus, setMsgStatus] = useState(null);
+
+  // Graph sizing
+  const graphContainerRef = useRef(null);
+  const [graphSize, setGraphSize] = useState({ width: 300, height: 200 });
+
+  useEffect(() => {
+    if (graphContainerRef.current) {
+      const { clientWidth, clientHeight } = graphContainerRef.current;
+      setGraphSize({ width: clientWidth, height: clientHeight });
+    }
+  }, [thing]); // Recalculate when data loads
 
   // Fetch Thing Data
   const fetchThing = async () => {
@@ -172,14 +184,20 @@ const Module2DTStatus = () => {
           </div>
         </div>
 
-        {/* Panel E: KG Status (Placeholder) */}
+        {/* Panel E: KG Status */}
         <div className="glass-panel panel-e" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Panel E: Trạng thái Knowledge Graph</h3>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
-              <div style={{ textAlign: 'center' }}>
-                  <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>Minimap đồ thị sẽ hiển thị ở đây.</p>
-                  <button className="btn" style={{ background: 'rgba(59,130,246,0.2)', color: '#93c5fd', border: '1px solid var(--primary)' }}>Xem Knowledge Graph đầy đủ</button>
-              </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h3 style={{ margin: 0 }}>Panel E: Trạng thái Knowledge Graph</h3>
+              <span style={{ fontSize: '0.6rem', padding: '1px 5px', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <span style={{ width: '4px', height: '4px', background: '#ef4444', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></span>
+                LIVE
+              </span>
+            </div>
+            <button className="btn" style={{ padding: '2px 8px', fontSize: '0.7rem', background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }} onClick={() => navigate('/neo4j')}>Đầy đủ →</button>
+          </div>
+          <div ref={graphContainerRef} className="graph-container">
+              <KGGraph thingId={thingId} width={graphSize.width} height={graphSize.height} />
           </div>
         </div>
 
