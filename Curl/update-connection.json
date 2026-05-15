@@ -1,0 +1,64 @@
+{
+  "id": "5e839069-02a6-465b-b4c6-80309cedd273",
+  "name": "MQTT Connection",
+  "connectionType": "mqtt",
+  "connectionStatus": "open",
+  "uri": "tcp://192.168.100.235:1883",
+  "sources": [
+    {
+      "addresses": [
+        "ditto/things/#"
+      ],
+      "consumerCount": 1,
+      "qos": 0,
+      "authorizationContext": [
+        "nginx:ditto"
+      ],
+      "headerMapping": {},
+      "payloadMapping": [
+        "javascript"
+      ],
+      "replyTarget": {
+        "address": "{{header:reply-to}}",
+        "headerMapping": {},
+        "expectedResponseTypes": [
+          "response",
+          "error"
+        ],
+        "enabled": true
+      }
+    }
+  ],
+  "targets": [
+    {
+      "address": "ditto/things/{{ thing:id }}/inbox/messages/{{ header:subject }}",
+      "topics": [
+        "_/_/things/live/messages"
+      ],
+      "qos": 0,
+      "authorizationContext": [
+        "nginx:ditto"
+      ],
+      "headerMapping": {
+        "reply-to": "{{ header:reply-to }}"
+      },
+      "payloadMapping": [
+        "javascript"
+      ]
+    }
+  ],
+  "clientCount": 1,
+  "failoverEnabled": true,
+  "validateCertificates": true,
+  "processorPoolSize": 1,
+  "mappingDefinitions": {
+    "javascript": {
+      "mappingEngine": "JavaScript",
+      "options": {
+        "incomingScript": "function mapToDittoProtocolMsg(headers, textPayload, bytePayload, contentType) {\n  var json = JSON.parse(textPayload);\n  var topic = headers['mqtt.topic'];\n  var parts = topic.split('/');\n  var thingId = parts[2];\n  var featureId = parts[4];\n  var propName = parts[6];\n  var namespace = thingId.split(':')[0];\n  var name = thingId.split(':')[1];\n  var path = '/features/' + featureId + '/properties/' + propName;\n  return Ditto.buildDittoProtocolMsg(namespace, name, 'things', 'twin', 'commands', 'modify', path, headers, json.value);\n}",
+        "outgoingScript": "function mapFromDittoProtocolMsg(namespace, name, group, channel, criterion, action, path, dittoHeaders, value, status, extra) {\n  var payload = { \"value\": value };\n  return Ditto.buildExternalMsg(dittoHeaders, JSON.stringify(payload));\n}"
+      }
+    }
+  },
+  "tags": []
+}

@@ -1,0 +1,24 @@
+{
+  "thingId": "smart-home:kettle-01",
+  "policyId": "smart-home:policy-01",
+  "attributes": {
+    "model": "RK-18",
+    "maxCapacity": 1.7,
+    "maxPower": 2000
+  },
+  "features": {
+    "power": {
+      "properties": {
+        "status": "off",
+        "currentPower": 0
+      }
+    },
+    "water": {
+      "properties": {
+        "temperature": 25,
+        "waterLevel": 50,
+        "targetTemperature": 100
+      }
+    }
+  }
+}

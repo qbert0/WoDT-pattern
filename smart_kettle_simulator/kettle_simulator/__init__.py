@@ -1,0 +1,1 @@
+"""Smart kettle simulation module."""
