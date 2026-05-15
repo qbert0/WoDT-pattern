@@ -2,9 +2,13 @@ import React, { useState, useRef } from 'react';
 import neo4j from 'neo4j-driver';
 import KGGraph from './KGGraph';
 
-const NEO4J_URI = 'bolt://100.104.220.45:7687';
-const NEO4J_USER = 'neo4j';
-const NEO4J_PASSWORD = 'password123';
+const NEO4J_URI = 'neo4j+s://7ca01e33.databases.neo4j.io';
+const NEO4J_USER = '7ca01e33';
+const NEO4J_PASSWORD = '72-s4g7miEWEV_ky_rSMKGIN3RYuJyYbxsR42qnCx0E';
+
+// Khởi tạo driver bên ngoài để dùng chung
+const driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
+console.log('Driver TargetGraphSetup khởi tạo:', NEO4J_URI);
 
 const TargetGraphSetup = () => {
   const [activeTab, setActiveTab] = useState('node');
@@ -13,21 +17,21 @@ const TargetGraphSetup = () => {
   const fileInputRef = useRef(null);
 
   // Add Node State
-  const [nodeData, setNodeData] = useState({ 
-    label: 'Goal', 
-    name: '', 
+  const [nodeData, setNodeData] = useState({
+    label: 'Goal',
+    name: '',
     description: '',
     type: 'achieve',
     command: '',
-    properties: '' 
+    properties: ''
   });
 
   // Add Relation State
-  const [relData, setRelData] = useState({ 
-    source: '', 
-    target: '', 
-    type: 'and', 
-    properties: '' 
+  const [relData, setRelData] = useState({
+    source: '',
+    target: '',
+    type: 'and',
+    properties: ''
   });
 
   const showStatus = (type, message) => {
@@ -37,7 +41,6 @@ const TargetGraphSetup = () => {
 
   const runQuery = async (query, params = {}) => {
     setLoading(true);
-    const driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
     const session = driver.session();
     try {
       await session.run(query, params);
@@ -47,7 +50,6 @@ const TargetGraphSetup = () => {
       showStatus('danger', `Lỗi: ${err.message}`);
     } finally {
       await session.close();
-      await driver.close();
       setLoading(false);
     }
   };
@@ -55,10 +57,10 @@ const TargetGraphSetup = () => {
   const handleAddNode = async (e) => {
     e.preventDefault();
     if (!nodeData.name) return showStatus('danger', 'Vui lòng nhập tên node');
-    
+
     // Construct dynamic properties if any
-    let props = { 
-      name: nodeData.name, 
+    let props = {
+      name: nodeData.name,
       description: nodeData.description
     };
 
@@ -81,13 +83,13 @@ const TargetGraphSetup = () => {
 
     const query = `CREATE (n:${nodeData.label} $props) RETURN n`;
     await runQuery(query, { props });
-    setNodeData({ 
-      label: nodeData.label, 
-      name: '', 
-      description: '', 
-      type: 'achieve', 
-      command: '', 
-      properties: '' 
+    setNodeData({
+      label: nodeData.label,
+      name: '',
+      description: '',
+      type: 'achieve',
+      command: '',
+      properties: ''
     });
   };
 
@@ -125,9 +127,8 @@ const TargetGraphSetup = () => {
       const content = event.target.result;
       // Split content by semicolon to run multiple queries if needed
       const queries = content.split(';').filter(q => q.trim().length > 0);
-      
+
       setLoading(true);
-      const driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
       const session = driver.session();
       try {
         for (const query of queries) {
@@ -138,7 +139,6 @@ const TargetGraphSetup = () => {
         showStatus('danger', `Lỗi khi chạy file: ${err.message}`);
       } finally {
         await session.close();
-        await driver.close();
         setLoading(false);
       }
     };
@@ -188,10 +188,10 @@ const TargetGraphSetup = () => {
 
       {/* Status Message */}
       {status.message && (
-        <div style={{ 
-          padding: '1rem', 
-          borderRadius: '8px', 
-          marginBottom: '1.5rem', 
+        <div style={{
+          padding: '1rem',
+          borderRadius: '8px',
+          marginBottom: '1.5rem',
           background: status.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
           color: status.type === 'success' ? '#10b981' : '#ef4444',
           border: `1px solid ${status.type === 'success' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
@@ -207,8 +207,8 @@ const TargetGraphSetup = () => {
           <form onSubmit={handleAddNode} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="form-group">
               <label>Loại Node</label>
-              <select 
-                value={nodeData.label} 
+              <select
+                value={nodeData.label}
                 onChange={(e) => setNodeData({ ...nodeData, label: e.target.value })}
               >
                 <option value="Goal">Goal (Mục tiêu)</option>
@@ -218,8 +218,8 @@ const TargetGraphSetup = () => {
             {nodeData.label === 'Goal' && (
               <div className="form-group">
                 <label>Kiểu (Type)</label>
-                <select 
-                  value={nodeData.type} 
+                <select
+                  value={nodeData.type}
                   onChange={(e) => setNodeData({ ...nodeData, type: e.target.value })}
                 >
                   <option value="achieve">Achieve (Đạt được)</option>
@@ -231,9 +231,9 @@ const TargetGraphSetup = () => {
             {nodeData.label === 'Task' && (
               <div className="form-group">
                 <label>Lệnh (Command)</label>
-                <input 
-                  type="text" 
-                  placeholder="VD: heat_water --temp 90" 
+                <input
+                  type="text"
+                  placeholder="VD: heat_water --temp 90"
                   value={nodeData.command}
                   onChange={(e) => setNodeData({ ...nodeData, command: e.target.value })}
                 />
@@ -241,17 +241,17 @@ const TargetGraphSetup = () => {
             )}
             <div className="form-group">
               <label>Tên Node</label>
-              <input 
-                type="text" 
-                placeholder="VD: Heat Water" 
+              <input
+                type="text"
+                placeholder="VD: Heat Water"
                 value={nodeData.name}
                 onChange={(e) => setNodeData({ ...nodeData, name: e.target.value })}
               />
             </div>
             <div className="form-group">
               <label>Mô tả</label>
-              <textarea 
-                rows="2" 
+              <textarea
+                rows="2"
                 placeholder="Mô tả ngắn gọn về node này..."
                 value={nodeData.description}
                 onChange={(e) => setNodeData({ ...nodeData, description: e.target.value })}
@@ -259,9 +259,9 @@ const TargetGraphSetup = () => {
             </div>
             <div className="form-group">
               <label>Thuộc tính bổ sung (JSON)</label>
-              <input 
-                type="text" 
-                placeholder='{"unit": "celsius", "min": 0}' 
+              <input
+                type="text"
+                placeholder='{"unit": "celsius", "min": 0}'
                 value={nodeData.properties}
                 onChange={(e) => setNodeData({ ...nodeData, properties: e.target.value })}
               />
@@ -278,18 +278,18 @@ const TargetGraphSetup = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div className="form-group">
                 <label>Node Gốc (ID hoặc Tên)</label>
-                <input 
-                  type="text" 
-                  placeholder="Source" 
+                <input
+                  type="text"
+                  placeholder="Source"
                   value={relData.source}
                   onChange={(e) => setRelData({ ...relData, source: e.target.value })}
                 />
               </div>
               <div className="form-group">
                 <label>Node Đích (ID hoặc Tên)</label>
-                <input 
-                  type="text" 
-                  placeholder="Target" 
+                <input
+                  type="text"
+                  placeholder="Target"
                   value={relData.target}
                   onChange={(e) => setRelData({ ...relData, target: e.target.value })}
                 />
@@ -297,8 +297,8 @@ const TargetGraphSetup = () => {
             </div>
             <div className="form-group">
               <label>Loại Quan hệ (Logic)</label>
-              <select 
-                value={relData.type} 
+              <select
+                value={relData.type}
                 onChange={(e) => setRelData({ ...relData, type: e.target.value })}
               >
                 <option value="and">AND (Và)</option>
@@ -310,9 +310,9 @@ const TargetGraphSetup = () => {
             </div>
             <div className="form-group">
               <label>Thuộc tính Quan hệ (JSON)</label>
-              <input 
-                type="text" 
-                placeholder='{"weight": 1.0}' 
+              <input
+                type="text"
+                placeholder='{"weight": 1.0}'
                 value={relData.properties}
                 onChange={(e) => setRelData({ ...relData, properties: e.target.value })}
               />
@@ -333,15 +333,15 @@ const TargetGraphSetup = () => {
                 Hỗ trợ file .cypher hoặc .txt chứa các câu lệnh CREATE, MATCH...
               </p>
             </div>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              style={{ display: 'none' }} 
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
               accept=".cypher,.txt"
               onChange={handleFileUpload}
             />
-            <button 
-              className="btn btn-primary" 
+            <button
+              className="btn btn-primary"
               onClick={() => fileInputRef.current.click()}
               disabled={loading}
             >
