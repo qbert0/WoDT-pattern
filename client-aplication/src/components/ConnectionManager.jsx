@@ -132,8 +132,7 @@ const ConnectionForm = ({ existing, onClose, onSaved }) => {
       // Ditto: POST to /connections (new), PUT to /connections/{id} (update)
       const url = isEdit ? `${BASE_URL}/connections/${form.id}` : `${BASE_URL}/connections`;
       const method = isEdit ? 'PUT' : 'POST';
-      if (!isEdit) delete payload.id; // for POST, id can be set in body or auto-assigned
-      if (!isEdit) payload.id = form.id; // actually include id so it's deterministic
+      if (!isEdit) delete payload.id; // for POST, id will be auto-assigned by Ditto
 
       const r = await fetch(url, { method, headers: headers(), body: JSON.stringify(payload) });
       if (!r.ok && r.status !== 201 && r.status !== 204) throw new Error(`HTTP ${r.status} — ${r.statusText}`);

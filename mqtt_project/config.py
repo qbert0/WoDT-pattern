@@ -4,16 +4,16 @@ SIMULATOR_MQTT_BROKER = "localhost"
 SIMULATOR_MQTT_PORT = 1884
 
 # ⚠️ QUAN TRỌNG: Ditto connection đang dùng IP 192.168.100.235
-DITTO_MQTT_BROKER = "100.104.220.45"  # Sửa từ 100.125.2.64 thành IP đúng
+DITTO_MQTT_BROKER = "http://35.240.154.27"  # Sửa từ 100.125.2.64 thành IP đúng
 DITTO_MQTT_PORT = 1883
 
 # Cấu hình Ditto API (vẫn giữ nguyên)
-DITTO_URL = "http://100.104.220.45:8080/api/2"
+DITTO_URL = "http://35.240.154.27:8080/api/2"
 USERNAME = "ditto"
 PASSWORD = "ditto"
 
 # Cấu hình Neo4j (vẫn giữ nguyên)
-NEO4J_URI = "bolt://100.104.220.45:7687"  
+NEO4J_URI = "bolt://35.240.154.27:7687"  
 NEO4J_USER = "neo4j"
 NEO4J_PASSWORD = "password123"
 

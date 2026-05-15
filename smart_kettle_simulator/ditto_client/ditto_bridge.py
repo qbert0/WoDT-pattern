@@ -26,7 +26,15 @@ class DittoTwinBridge:
         self.password = password
         self.on_ditto_command = on_ditto_command
         self.client = None
-        self.command_topic = f"ditto/things/{self.thing_id}/inbox/messages/+"
+        
+        # Parse namespace and name from thing_id (e.g. smart-home:kettle-01)
+        if ":" in self.thing_id:
+            ns, name = self.thing_id.split(":", 1)
+        else:
+            ns, name = "default", self.thing_id
+            
+        self.ditto_topic_prefix = f"{ns}/{name}/things"
+        self.command_topic = f"{self.ditto_topic_prefix}/live/messages/+"
         self._last_feature_values: Dict[str, Dict[str, Any]] = {}
 
     def connect(self) -> bool:
@@ -54,25 +62,43 @@ class DittoTwinBridge:
         print(f"[DittoBridge] Listening on {self.command_topic}")
 
     def _on_message(self, client, _userdata, msg):
+        subject = msg.topic.split("/")[-1]
+        reply_topic = msg.topic
+
         try:
             payload = json.loads(msg.payload.decode())
             commands = payload.get("value", {})
-            reply_topic = f"{msg.topic}/response"
+            headers = payload.get("headers", {})
 
-            if not isinstance(commands, dict):
-                return
+            result_value: Dict[str, Any] = {"command": subject, "accepted": True}
+            if self.on_ditto_command:
+                result = self.on_ditto_command(subject, commands or {})
+                if isinstance(result, dict):
+                    result_value.update(result)
 
-            for command, params in commands.items():
-                if self.on_ditto_command:
-                    self.on_ditto_command(command, params or {})
-                response = {"status": 200, "command": command}
-                client.publish(reply_topic, json.dumps(response), qos=0)
+            response_headers = {"content-type": "application/json"}
+            if "correlation-id" in headers:
+                response_headers["correlation-id"] = headers["correlation-id"]
+
+            response_payload = {
+                "topic": f"{self.ditto_topic_prefix}/live/messages/{subject}",
+                "headers": response_headers,
+                "path": f"/outbox/messages/{subject}",
+                "status": 200,
+                "value": result_value,
+            }
+            client.publish(reply_topic, json.dumps(response_payload), qos=0)
+
         except Exception as exc:
-            client.publish(
-                f"{msg.topic}/response",
-                json.dumps({"status": 500, "message": str(exc)}),
-                qos=0,
-            )
+            response_payload = {
+                "topic": f"{self.ditto_topic_prefix}/live/messages/{subject}",
+                "headers": {"content-type": "application/json"},
+                # ✅ Bug 2 fix: outbox ở đây cũng vậy
+                "path": f"/outbox/messages/{subject}",
+                "status": 500,
+                "value": {"error": str(exc)},
+            }
+            client.publish(reply_topic, json.dumps(response_payload), qos=0)
 
     def publish_features(self, features_payload: Dict[str, Any]) -> None:
         if not self.client:
@@ -84,11 +110,15 @@ class DittoTwinBridge:
                 if feature_cache.get(property_name) == value:
                     continue
 
-                topic = (
-                    f"ditto/things/{self.thing_id}/features/"
-                    f"{feature_name}/properties/{property_name}"
-                )
-                self.client.publish(topic, json.dumps({"value": value}), qos=1)
+                topic = f"{self.ditto_topic_prefix}/twin/commands/modify"
+                path = f"/features/{feature_name}/properties/{property_name}"
+                payload = {
+                    "topic": topic,
+                    "headers": {"content-type": "application/json"},
+                    "path": path,
+                    "value": value
+                }
+                self.client.publish(topic, json.dumps(payload), qos=1)
                 feature_cache[property_name] = value
                 time.sleep(0.05)
 
@@ -96,8 +126,14 @@ class DittoTwinBridge:
         if not self.client:
             return
 
-        topic = f"ditto/things/{self.thing_id}/attributes"
-        self.client.publish(topic, json.dumps({"value": attributes_payload}), qos=1)
+        topic = f"{self.ditto_topic_prefix}/twin/commands/modify"
+        payload = {
+            "topic": topic,
+            "headers": {"content-type": "application/json"},
+            "path": "/attributes",
+            "value": attributes_payload
+        }
+        self.client.publish(topic, json.dumps(payload), qos=1)
         time.sleep(0.05)
 
     def disconnect(self) -> None:
