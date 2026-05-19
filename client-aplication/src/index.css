@@ -366,7 +366,7 @@ input:focus, select:focus, textarea:focus {
 .panel-e { grid-column: span 6; }
 
 @media (max-width: 1024px) {
-  .panel-b, .panel-c, .panel-d, .panel-e { grid-column: span 12; }
+  .panel-b, .panel-c, .panel-d, .panel-e, .panel-f { grid-column: span 12; }
 }
 
 .panel-e {
