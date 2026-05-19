@@ -25,9 +25,9 @@ smart_kettle_simulator/
 ## Luong du lieu
 
 ```text
-Kettle Simulator -> Core -> Ditto MQTT -> Eclipse Ditto
-Eclipse Ditto -> Ditto MQTT -> Core -> Kettle Simulator
-Core -> Neo4j Module -> Neo4j
+Kettle Simulator -> MQTT Broker -> Digital Twin App -> Eclipse Ditto
+Eclipse Ditto -> Digital Twin App -> MQTT Broker -> Kettle Simulator
+Digital Twin App -> Neo4j Module -> Neo4j
 ```
 
 ## Vai tro tung module
@@ -75,15 +75,15 @@ Module repository truy van Neo4j:
 
 ### 1. Tao moi truong va cai dependency
 
-```powershell
+```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r .\smart_kettle_simulator\requirements.txt
+source .venv/bin/activate
+pip install -r smart_kettle_simulator/requirements.txt
 ```
 
 ### 2. Cau hinh `.env`
 
-Chinh file [`.env`](/e:/code/Muti-agent-app/WoDT-test/smart_kettle_simulator/.env:1):
+Chinh file `.env`:
 
 - `THING_ID`
 - `SIMULATION_INTERVAL`
@@ -97,25 +97,90 @@ Chinh file [`.env`](/e:/code/Muti-agent-app/WoDT-test/smart_kettle_simulator/.en
 
 Neu khong dung Neo4j, he thong van chay. Luc do phan validate command qua graph se tu dong bi bo qua khi ket noi that bai.
 
-### 3. Chay gia lap
+Mac dinh demo hien tai dung:
 
-```powershell
+```text
+MQTT_HOST=35.240.154.27
+DITTO_MQTT_HOST=35.240.154.27
+DITTO HTTP API=http://35.240.154.27:8080/api/2
+THING_ID=smart-home:kettle-01
+```
+
+### 3. Chay Digital Twin app
+
+Chay DT truoc de subscribe state tu simulator va dong bo len Ditto:
+
+```bash
+source .venv/bin/activate
+python -m smart_kettle_simulator.scripts.run_digital_twin
+```
+
+Log mong doi:
+
+```text
+[MQTTBridge] Twin listening on kettle/smart-home:kettle-01/state and kettle/smart-home:kettle-01/responses
+[DittoBridge] Listening on smart-home/kettle-01/things/live/messages/+
+dt>
+```
+
+### 4. Chay Kettle Simulator
+
+Mo terminal khac va chay:
+
+```bash
+source .venv/bin/activate
 python -m smart_kettle_simulator.scripts.run_simulation
 ```
 
-Hoac:
+Log mong doi:
 
-```powershell
-python -m smart_kettle_simulator.main
+```text
+[MQTTBridge] Device listening on kettle/smart-home:kettle-01/commands
+sim>
 ```
 
-### 4. Lenh dieu khien trong terminal
+Lenh dieu khien tai prompt `sim>`:
 
 - `on`
 - `off`
 - `temp 95`
+- `water 80`
 - `status`
 - `quit`
+
+DT se nhan state tu MQTT broker va cap nhat Ditto features:
+
+```text
+features.power.properties.status
+features.water.properties.temperature
+features.water.properties.waterLevel
+features.water.properties.targetTemperature
+```
+
+### 5. Kiem tra Ditto
+
+```bash
+curl -u ditto:ditto \
+  -H "Accept: application/json" \
+  "http://35.240.154.27:8080/api/2/things/smart-home:kettle-01"
+```
+
+### 6. Giao dien Digital Twin
+
+`digital_twin_app` la CLI runtime, khong co web UI rieng. Web UI nam trong `client-aplication/`:
+
+```bash
+cd client-aplication
+npm install
+npm run dev
+```
+
+Mo:
+
+```text
+http://localhost:5173
+http://localhost:5173/dt/smart-home%3Akettle-01
+```
 
 ## Seed Neo4j
 
@@ -125,7 +190,7 @@ Co the mo Neo4j Browser va chay script nay de tao capability graph.
 
 ## Test
 
-```powershell
+```bash
 pip install pytest
-pytest .\smart_kettle_simulator\tests
+pytest smart_kettle_simulator/tests
 ```
