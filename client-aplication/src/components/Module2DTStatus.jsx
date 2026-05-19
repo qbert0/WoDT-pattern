@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import KGGraph from './KGGraph';
+import ObjectController from './ObjectController';
 
 const BASE_URL = 'http://35.240.154.27:8080/api/2';
 const DEFAULT_AUTH = btoa('ditto:ditto');
@@ -120,6 +121,24 @@ const Module2DTStatus = () => {
     }
   };
 
+  // Handle Action from ObjectController
+  const handleControllerAction = (target) => {
+    setMessageSubject(target.command || target.name);
+    // If it's a Task with command, pre-fill. If Goal, maybe just the name.
+    if (target.properties && Object.keys(target.properties).length > 0) {
+        const { name, description, command, type, ...rest } = target.properties;
+        setMessagePayload(JSON.stringify(rest, null, 2));
+    } else {
+        setMessagePayload('{}');
+    }
+    
+    // Scroll to messages panel
+    const msgPanel = document.querySelector('.panel-d');
+    if (msgPanel) {
+        msgPanel.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   if (loading && !thing) {
     return <div style={{ padding: '3rem', textAlign: 'center' }}>Đang tải dữ liệu...</div>;
   }
@@ -199,6 +218,11 @@ const Module2DTStatus = () => {
           <div ref={graphContainerRef} className="graph-container">
               <KGGraph thingId={thingId} width={graphSize.width} height={graphSize.height} />
           </div>
+        </div>
+
+        {/* Panel F: Semantic Object Controller */}
+        <div className="glass-panel panel-f" style={{ gridColumn: 'span 6', minHeight: '400px' }}>
+          <ObjectController thingId={thingId} onAction={handleControllerAction} />
         </div>
 
         {/* Panel B: Attributes */}

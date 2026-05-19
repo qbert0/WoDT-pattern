@@ -4,9 +4,21 @@ import neo4j from 'neo4j-driver';
 
 // Neo4j Configuration
 // In a production app, these should come from environment variables
-const NEO4J_URI = 'bolt://100.104.220.45:7687';
-const NEO4J_USER = 'neo4j';
-const NEO4J_PASSWORD = 'password123';
+// Thêm port 7687 tường minh và thử các protocol khác nếu vẫn lỗi:
+// 1. 'neo4j+s://...' (Mặc định)
+// 2. 'neo4j+ssc://...' (Bỏ qua kiểm tra SSL - dùng nếu mạng bị chặn)
+// 3. 'bolt+s://...' (Kết nối trực tiếp không qua routing)
+const NEO4J_URI = 'neo4j+s://7ca01e33.databases.neo4j.io';
+const NEO4J_USER = '7ca01e33';
+const NEO4J_PASSWORD = '72-s4g7miEWEV_ky_rSMKGIN3RYuJyYbxsR42qnCx0E';
+
+let driver;
+try {
+  driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
+  console.log('Driver Neo4j đã khởi tạo với URI:', NEO4J_URI);
+} catch (err) {
+  console.error('Lỗi khởi tạo driver:', err);
+}
 
 const KGGraph = ({ thingId, width, height }) => {
   const [data, setData] = useState({ nodes: [], links: [] });
@@ -15,9 +27,14 @@ const KGGraph = ({ thingId, width, height }) => {
 
   useEffect(() => {
     let isMounted = true;
-    const driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
 
     const fetchGraph = async () => {
+      if (!driver) {
+        setError('Driver Neo4j chưa được khởi tạo.');
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
       const session = driver.session();
@@ -33,7 +50,7 @@ const KGGraph = ({ thingId, width, height }) => {
         `;
 
         const result = await session.run(query);
-        
+
         const nodesMap = new Map();
         const links = [];
 
@@ -48,7 +65,7 @@ const KGGraph = ({ thingId, width, height }) => {
               const props = node.properties;
               nodesMap.set(node.identity.toString(), {
                 id: node.identity.toString(),
-                name: props.name || props.id || labels[0] || 'Unknown',
+                name: props.name || props.id || node.labels[0] || 'Unknown',
                 type: node.labels[0] || 'Node',
                 properties: props,
                 val: node.labels[0] === 'Agent' ? 15 : (node.labels[0] === 'Goal' ? 12 : 8)
@@ -66,9 +83,9 @@ const KGGraph = ({ thingId, width, height }) => {
         });
 
         if (isMounted) {
-          setData({ 
-            nodes: Array.from(nodesMap.values()), 
-            links: links 
+          setData({
+            nodes: Array.from(nodesMap.values()),
+            links: links
           });
           setError(null);
         }
@@ -87,7 +104,6 @@ const KGGraph = ({ thingId, width, height }) => {
 
     return () => {
       isMounted = false;
-      driver.close();
     };
   }, [thingId]);
 
@@ -95,7 +111,7 @@ const KGGraph = ({ thingId, width, height }) => {
     switch (node.type) {
       case 'Agent': return '#f87171'; // Red
       case 'Goal': return '#60a5fa';  // Blue
-      case 'Task': 
+      case 'Task':
       case 'Action': return '#34d399';  // Green
       case 'DT': return '#a78bfa';    // Purple
       case 'Capability': return '#fbbf24'; // Yellow
@@ -117,12 +133,12 @@ const KGGraph = ({ thingId, width, height }) => {
     return (
       <div style={{ width, height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1rem', textAlign: 'center' }}>
         <div style={{ color: 'var(--danger)', marginBottom: '1rem' }}>⚠️ {error}</div>
-        <button 
-            className="btn" 
-            style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)' }}
-            onClick={() => window.location.reload()}
+        <button
+          className="btn"
+          style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)' }}
+          onClick={() => window.location.reload()}
         >
-            Thử lại
+          Thử lại
         </button>
       </div>
     );
@@ -135,10 +151,10 @@ const KGGraph = ({ thingId, width, height }) => {
         width={width}
         height={height}
         nodeLabel={(node) => {
-            const props = Object.entries(node.properties)
-                .map(([k, v]) => `<div><b>${k}:</b> ${v}</div>`)
-                .join('');
-            return `<div style="background: rgba(15, 23, 42, 0.9); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 11px;">
+          const props = Object.entries(node.properties)
+            .map(([k, v]) => `<div><b>${k}:</b> ${v}</div>`)
+            .join('');
+          return `<div style="background: rgba(15, 23, 42, 0.9); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 11px;">
                         <div style="color: ${getNodeColor(node)}; font-weight: bold; margin-bottom: 4px;">${node.type}: ${node.name}</div>
                         ${props}
                     </div>`;
@@ -154,13 +170,13 @@ const KGGraph = ({ thingId, width, height }) => {
           const label = node.name;
           const fontSize = 12 / globalScale;
           ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
-          
+
           // Node Circle
           ctx.beginPath();
           ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI, false);
           ctx.fillStyle = getNodeColor(node);
           ctx.fill();
-          
+
           // Glow effect
           ctx.shadowColor = getNodeColor(node);
           ctx.shadowBlur = 10;
@@ -176,7 +192,7 @@ const KGGraph = ({ thingId, width, height }) => {
           }
         }}
       />
-      
+
       {/* Legend */}
       <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.5)', padding: '8px', borderRadius: '4px', fontSize: '10px', display: 'flex', flexDirection: 'column', gap: '4px', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(4px)', pointerEvents: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -196,7 +212,7 @@ const KGGraph = ({ thingId, width, height }) => {
           <span>DT / Kettle</span>
         </div>
       </div>
-      
+
       <div style={{ position: 'absolute', top: '10px', right: '10px', fontSize: '9px', color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }}>
         Neo4j: {NEO4J_URI}
       </div>
