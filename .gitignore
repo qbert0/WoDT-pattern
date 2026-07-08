@@ -18,3 +18,6 @@ ditto-docker/docker/nginx.htpasswd
 ditto-docker/docker/README.md
 ditto-docker/docker/swagger3-index.html
 client-aplication/.env
+ditto-ambassador/.env
+ditto-ambassador/target/
+client-aplication/node_modules/
