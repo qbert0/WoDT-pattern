@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { DITTO_API_BASE_URL as BASE_URL, DITTO_DEVOPS_AUTHORIZATION } from '../config';
+import { DITTO_API_BASE_URL as BASE_URL } from '../config';
 
-// /api/2/connections bypasses nginx htpasswd (no auth_basic in nginx.conf)
-// and goes directly to Ditto gateway → requires Ditto internal devops credentials
+// The ambassador selects the Ditto devops credentials for /api/2/connections.
 const headers = (extra = {}) => ({
-  'Authorization': DITTO_DEVOPS_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,
@@ -239,7 +237,7 @@ const ConnectionManager = () => {
 
       {/* Architecture note */}
       <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: '8px', padding: '0.65rem 1rem', marginBottom: '1.25rem', color: '#93c5fd', fontSize: '0.82rem' }}>
-        ℹ️ <b>/api/2/connections</b> bypasses nginx auth và dùng Ditto devops credentials được cấu hình trong <code>.env</code>. Xem <code>nginx.conf</code> để biết thêm.
+        ℹ️ <b>/api/2/connections</b> được gửi qua ambassador; devops credentials chỉ được cấu hình ở backend.
       </div>
 
       {error && <div style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid var(--danger)', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem' }}>{error}</div>}

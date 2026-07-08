@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import {
   DITTO_API_BASE_URL as BASE_URL,
-  DITTO_AUTHORIZATION,
   DITTO_POLICY_SUBJECT,
 } from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,

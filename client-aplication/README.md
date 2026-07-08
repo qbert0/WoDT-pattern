@@ -35,7 +35,9 @@ cp .env.example .env
 
 Các nhóm cấu hình chính:
 
-- `VITE_DITTO_*`: API URL, tài khoản Ditto/devops, polling và phân trang.
+- `VITE_AMBASSADOR_BASE_URL`: URL Spring Boot Ditto Ambassador (mặc định local là `http://localhost:8081`).
+- `VITE_DITTO_POLICY_SUBJECT`: subject dùng khi tạo policy; Ditto credentials không còn nằm trong frontend.
+- Các biến polling và phân trang của Ditto.
 - `VITE_NEO4J_*`: URI, tài khoản Neo4j, URL ứng dụng graph và giới hạn truy vấn.
 
 Sau khi sửa `.env`, cần khởi động lại Vite để nạp cấu hình mới.
@@ -67,5 +69,5 @@ npm run dev
 ## ⚠️ Lưu ý quan trọng về Cấu hình (Configuration)
 
 - Không commit file `.env`; repository chỉ lưu `.env.example` làm mẫu.
-- Các biến có tiền tố `VITE_` được đóng gói vào mã frontend và người dùng trình duyệt có thể đọc được. `.env` giúp quản lý cấu hình, nhưng không bảo mật secret. Khi triển khai production, nên đưa thao tác Neo4j và xác thực nhạy cảm qua backend/proxy.
+- Các biến có tiền tố `VITE_` được đóng gói vào mã frontend và người dùng trình duyệt có thể đọc được. Ditto credentials phải được cấu hình trong `ditto-ambassador/.env`, không đặt trong frontend. Thông tin Neo4j hiện vẫn thuộc kiến trúc frontend hiện có.
 - Đảm bảo máy tính của bạn có kết nối Internet để ứng dụng có thể giao tiếp với database Neo4j.

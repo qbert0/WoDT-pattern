@@ -5,12 +5,10 @@ import KGGraph from './KGGraph';
 import ObjectController from './ObjectController';
 import {
   DITTO_API_BASE_URL as BASE_URL,
-  DITTO_AUTHORIZATION,
   STATUS_POLL_INTERVAL_MS,
 } from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,
