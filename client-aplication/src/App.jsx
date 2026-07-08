@@ -6,7 +6,6 @@ import Module3CreateWizard from './components/Module3CreateWizard';
 import PolicyManager from './components/PolicyManager';
 import ConnectionManager from './components/ConnectionManager';
 import Neo4jRedirect from './components/Neo4jRedirect';
-import TargetGraphSetup from './components/TargetGraphSetup';
 
 function App() {
   const location = useLocation();
@@ -63,13 +62,6 @@ function App() {
             >
               Neo4j Integration
             </Link>
-            <Link
-              to="/target-graph"
-              className={`btn ${isActive('/target-graph') ? 'btn-primary' : ''}`}
-              style={{ justifyContent: 'flex-start', background: isActive('/target-graph') ? 'var(--primary)' : 'transparent', color: isActive('/target-graph') ? 'white' : 'var(--text-muted)', textDecoration: 'none' }}
-            >
-              Target Graph Setup
-            </Link>
           </div>
         </div>
       </nav>
@@ -82,7 +74,6 @@ function App() {
           <Route path="/policies" element={<PolicyManager />} />
           <Route path="/connections" element={<ConnectionManager />} />
           <Route path="/neo4j" element={<Neo4jRedirect />} />
-          <Route path="/target-graph" element={<TargetGraphSetup />} />
         </Routes>
       </main>
     </div>

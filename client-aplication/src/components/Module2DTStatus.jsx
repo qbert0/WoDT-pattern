@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import KGGraph from './KGGraph';
 import ObjectController from './ObjectController';
+import TargetGraphSetup from './TargetGraphSetup';
 import {
   DITTO_API_BASE_URL as BASE_URL,
   DITTO_AUTHORIZATION,
@@ -42,6 +43,8 @@ const Module2DTStatus = () => {
   // Graph sizing
   const graphContainerRef = useRef(null);
   const [graphSize, setGraphSize] = useState({ width: 300, height: 200 });
+  const [graphRefreshKey, setGraphRefreshKey] = useState(0);
+  const [showSetupModal, setShowSetupModal] = useState(false);
 
   useEffect(() => {
     if (graphContainerRef.current) {
@@ -167,6 +170,9 @@ const Module2DTStatus = () => {
             <span className="dt-namespace" style={{ fontSize: '1rem' }}>{thingId}</span>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button className="btn btn-primary" onClick={() => setShowSetupModal(true)}>
+             ⚙ Thiết lập Biểu đồ
+          </button>
           <button className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => navigate('/')}>
              ← Quay lại danh sách
           </button>
@@ -218,13 +224,13 @@ const Module2DTStatus = () => {
             <button className="btn" style={{ padding: '2px 8px', fontSize: '0.7rem', background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }} onClick={() => navigate('/neo4j')}>Đầy đủ →</button>
           </div>
           <div ref={graphContainerRef} className="graph-container">
-              <KGGraph thingId={thingId} width={graphSize.width} height={graphSize.height} />
+              <KGGraph key={graphRefreshKey} thingId={thingId} width={graphSize.width} height={graphSize.height} />
           </div>
         </div>
 
         {/* Panel F: Semantic Object Controller */}
         <div className="glass-panel panel-f" style={{ gridColumn: 'span 6', minHeight: '400px' }}>
-          <ObjectController thingId={thingId} onAction={handleControllerAction} />
+          <ObjectController thingId={thingId} onAction={handleControllerAction} onOpenSetup={() => setShowSetupModal(true)} />
         </div>
 
         {/* Panel B: Attributes */}
@@ -249,9 +255,9 @@ const Module2DTStatus = () => {
                style={{ width: '100%', height: '250px', fontFamily: 'monospace', fontSize: '0.85rem' }}
              />
           ) : (
-             <pre style={{ width: '100%', height: '250px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '4px', fontSize: '0.85rem', color: '#a78bfa' }}>
-               {JSON.stringify(thing.attributes || {}, null, 2)}
-             </pre>
+              <pre style={{ width: '100%', height: '250px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '4px', fontSize: '0.85rem', color: '#a78bfa' }}>
+                {JSON.stringify(thing.attributes || {}, null, 2)}
+              </pre>
           )}
         </div>
 
@@ -380,6 +386,20 @@ const Module2DTStatus = () => {
         </div>
 
       </div>
+
+      {showSetupModal && (
+        <div className="modal-overlay" onClick={() => setShowSetupModal(false)}>
+          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Thiết lập Biểu đồ Mục tiêu</h2>
+              <button className="close-btn" onClick={() => setShowSetupModal(false)} style={{ fontSize: '1.5rem', background: 'transparent' }}>&times;</button>
+            </div>
+            <div style={{ maxHeight: '75vh', overflowY: 'auto', paddingRight: '0.5rem' }}>
+              <TargetGraphSetup hidePreview={true} onGraphChange={() => setGraphRefreshKey(prev => prev + 1)} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

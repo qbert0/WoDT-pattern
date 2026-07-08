@@ -8,7 +8,7 @@ const driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWO
  * ObjectController Component
  * Tự động sinh giao diện điều khiển dựa trên Knowledge Graph
  */
-const ObjectController = ({ thingId, onAction }) => {
+const ObjectController = ({ thingId, onAction, onOpenSetup }) => {
   const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -142,7 +142,15 @@ const ObjectController = ({ thingId, onAction }) => {
             <p style={{ fontSize: '0.9rem' }}>
               Chưa tìm thấy mục tiêu Semantic nào trong đồ thị liên quan đến thực thể này.
               <br/>
-              <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>Sử dụng "Target Graph Setup" để thiết lập quan hệ.</span>
+              {onOpenSetup && (
+                <button 
+                  onClick={onOpenSetup}
+                  className="btn" 
+                  style={{ fontSize: '0.8rem', marginTop: '0.75rem', background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd' }}
+                >
+                  ⚙ Thiết lập Biểu đồ Mục tiêu
+                </button>
+              )}
             </p>
           </div>
         ) : (
