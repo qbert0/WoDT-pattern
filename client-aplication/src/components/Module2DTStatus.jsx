@@ -3,12 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import KGGraph from './KGGraph';
 import ObjectController from './ObjectController';
-
-const BASE_URL = 'http://35.240.154.27:8080/api/2';
-const DEFAULT_AUTH = btoa('ditto:ditto');
+import {
+  DITTO_API_BASE_URL as BASE_URL,
+  DITTO_AUTHORIZATION,
+  STATUS_POLL_INTERVAL_MS,
+} from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': `Basic ${DEFAULT_AUTH}`,
+  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,
@@ -71,7 +73,7 @@ const Module2DTStatus = () => {
     // Setup Auto-polling for real-time updates
     const interval = setInterval(() => {
       fetchThing();
-    }, 5000); // Poll every 5s
+    }, STATUS_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [thingId]);
 

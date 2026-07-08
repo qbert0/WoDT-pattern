@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-
-const BASE_URL = 'http://35.240.154.27:8080/api/2';
-const DEFAULT_AUTH = btoa('ditto:ditto');
+import {
+  DITTO_API_BASE_URL as BASE_URL,
+  DITTO_AUTHORIZATION,
+  DITTO_POLICY_SUBJECT,
+} from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': `Basic ${DEFAULT_AUTH}`,
+  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,
@@ -12,7 +14,9 @@ const headers = (extra = {}) => ({
 
 // ---------- Sub-panel: Policy Entries editor ----------
 const EntryPanel = ({ policyId, entryLabel, onClose, onSaved }) => {
-  const [subjects, setSubjects] = useState('{\n  "nginx:ditto": { "type": "nginx basic auth user" }\n}');
+  const [subjects, setSubjects] = useState(() => JSON.stringify({
+    [DITTO_POLICY_SUBJECT]: { type: 'nginx basic auth user' }
+  }, null, 2));
   const [resources, setResources] = useState('{\n  "thing:/": { "grant": ["READ","WRITE"], "revoke": [] },\n  "policy:/": { "grant": ["READ","WRITE"], "revoke": [] },\n  "message:/": { "grant": ["READ","WRITE"], "revoke": [] }\n}');
   const [error, setError] = useState(null);
 

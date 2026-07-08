@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const BASE_URL = 'http://35.240.154.27:8080/api/2';
-const DEFAULT_AUTH = btoa('ditto:ditto');
+import {
+  DITTO_API_BASE_URL as BASE_URL,
+  DITTO_AUTHORIZATION,
+  HOME_POLL_INTERVAL_MS,
+  SEARCH_PAGE_SIZE,
+} from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': `Basic ${DEFAULT_AUTH}`,
+  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,
@@ -46,7 +49,7 @@ const Module1Home = () => {
       let filterQuery = rqlParts.length > 0 ? `filter=${encodeURIComponent(rqlParts.join(' AND '))}` : '';
       
       const sortQuery = `sort=${sortBy}`;
-      let optionQuery = 'option=size(25)';
+      let optionQuery = `option=size(${SEARCH_PAGE_SIZE})`;
       if (isLoadMore && cursor) {
         optionQuery += `,cursor(${cursor})`;
       }
@@ -119,7 +122,7 @@ const Module1Home = () => {
           if (!isLoading) {
               fetchThings();
           }
-      }, 10000);
+      }, HOME_POLL_INTERVAL_MS);
       
       return () => clearInterval(interval);
     };

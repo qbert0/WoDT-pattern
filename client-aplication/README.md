@@ -16,7 +16,6 @@ Mở Terminal (hoặc Command Prompt, PowerShell) và di chuyển vào thư mụ
 ```bash
 cd e:\WoDT-pattern\client-aplication
 ```
-*(Thay đổi đường dẫn nếu bạn đang mở thư mục ở vị trí khác)*
 
 ### 2. Cài đặt các thư viện phụ thuộc (Dependencies)
 
@@ -26,7 +25,22 @@ Chạy lệnh sau để tải và cài đặt các packages cần thiết đã �
 npm install
 ```
 
-### 3. Khởi chạy server phát triển (Development Server)
+### 3. Cấu hình môi trường
+
+Tạo file `.env` từ file mẫu, sau đó cập nhật địa chỉ và thông tin kết nối theo môi trường của bạn:
+
+```bash
+cp .env.example .env
+```
+
+Các nhóm cấu hình chính:
+
+- `VITE_DITTO_*`: API URL, tài khoản Ditto/devops, polling và phân trang.
+- `VITE_NEO4J_*`: URI, tài khoản Neo4j, URL ứng dụng graph và giới hạn truy vấn.
+
+Sau khi sửa `.env`, cần khởi động lại Vite để nạp cấu hình mới.
+
+### 4. Khởi chạy server phát triển (Development Server)
 
 Sau khi quá trình cài đặt hoàn tất, hãy khởi động ứng dụng bằng lệnh:
 
@@ -34,7 +48,7 @@ Sau khi quá trình cài đặt hoàn tất, hãy khởi động ứng dụng b�
 npm run dev
 ```
 
-### 4. Truy cập ứng dụng trên trình duyệt
+### 5. Truy cập ứng dụng trên trình duyệt
 
 Ứng dụng sẽ tự động chạy tại một cổng mặc định (thường là 5173). Mở trình duyệt web của bạn và truy cập vào:
 
@@ -52,5 +66,6 @@ npm run dev
 
 ## ⚠️ Lưu ý quan trọng về Cấu hình (Configuration)
 
-- Ứng dụng hiện đang được tích hợp trực tiếp với cơ sở dữ liệu **Neo4j** (AuraDB). Các thông tin xác thực (`NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`) đang được cấu hình trực tiếp trong các file component (ví dụ: `src/components/TargetGraphSetup.jsx`). 
+- Không commit file `.env`; repository chỉ lưu `.env.example` làm mẫu.
+- Các biến có tiền tố `VITE_` được đóng gói vào mã frontend và người dùng trình duyệt có thể đọc được. `.env` giúp quản lý cấu hình, nhưng không bảo mật secret. Khi triển khai production, nên đưa thao tác Neo4j và xác thực nhạy cảm qua backend/proxy.
 - Đảm bảo máy tính của bạn có kết nối Internet để ứng dụng có thể giao tiếp với database Neo4j.

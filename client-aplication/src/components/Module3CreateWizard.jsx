@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const BASE_URL = 'http://35.240.154.27:8080/api/2';
-const DEFAULT_AUTH = btoa('ditto:ditto');
+import {
+  DITTO_API_BASE_URL as BASE_URL,
+  DITTO_AUTHORIZATION,
+  DITTO_POLICY_SUBJECT,
+} from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': `Basic ${DEFAULT_AUTH}`,
+  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,
@@ -16,7 +18,7 @@ const POLICY_TEMPLATES = {
   'default': {
     "entries": {
       "owner": {
-        "subjects": { "nginx:ditto": { "type": "nginx basic auth user" } },
+        "subjects": { [DITTO_POLICY_SUBJECT]: { "type": "nginx basic auth user" } },
         "resources": {
           "thing:/": { "grant": ["READ","WRITE"], "revoke": [] },
           "policy:/": { "grant": ["READ","WRITE"], "revoke": [] },
@@ -28,7 +30,7 @@ const POLICY_TEMPLATES = {
   'read-only': {
     "entries": {
       "viewer": {
-        "subjects": { "nginx:ditto": { "type": "nginx basic auth user" } },
+        "subjects": { [DITTO_POLICY_SUBJECT]: { "type": "nginx basic auth user" } },
         "resources": {
           "thing:/": { "grant": ["READ"], "revoke": ["WRITE"] },
           "policy:/": { "grant": ["READ"], "revoke": ["WRITE"] },

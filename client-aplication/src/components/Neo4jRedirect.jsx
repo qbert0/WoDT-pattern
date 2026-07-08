@@ -1,8 +1,9 @@
 import React from 'react';
+import { NEO4J_BROWSER_URL } from '../config';
 
 const Neo4jRedirect = () => {
   const handleRedirect = () => {
-    window.open('https://vercel-neo4j-murex.vercel.app/', '_blank', 'noopener,noreferrer');
+    window.open(NEO4J_BROWSER_URL, '_blank', 'noopener,noreferrer');
   };
 
   return (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import neo4j from 'neo4j-driver';
+import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_QUERY_LIMIT } from '../config';
 
 // Neo4j Configuration
 // In a production app, these should come from environment variables
@@ -8,10 +9,6 @@ import neo4j from 'neo4j-driver';
 // 1. 'neo4j+s://...' (Mặc định)
 // 2. 'neo4j+ssc://...' (Bỏ qua kiểm tra SSL - dùng nếu mạng bị chặn)
 // 3. 'bolt+s://...' (Kết nối trực tiếp không qua routing)
-const NEO4J_URI = 'neo4j+s://7ca01e33.databases.neo4j.io';
-const NEO4J_USER = '7ca01e33';
-const NEO4J_PASSWORD = '72-s4g7miEWEV_ky_rSMKGIN3RYuJyYbxsR42qnCx0E';
-
 let driver;
 try {
   driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
@@ -46,7 +43,7 @@ const KGGraph = ({ thingId, width, height }) => {
         const query = `
           MATCH (n)-[r]->(m)
           RETURN n, r, m
-          LIMIT 200
+          LIMIT ${NEO4J_QUERY_LIMIT}
         `;
 
         const result = await session.run(query);

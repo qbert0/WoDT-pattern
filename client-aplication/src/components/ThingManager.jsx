@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-
-const BASE_URL = 'http://35.240.154.27:8080/api/2';
-const DEFAULT_AUTH = btoa('ditto:ditto');
+import { DITTO_API_BASE_URL as BASE_URL, DITTO_AUTHORIZATION } from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': `Basic ${DEFAULT_AUTH}`,
+  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,

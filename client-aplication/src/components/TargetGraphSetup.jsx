@@ -1,10 +1,7 @@
 import React, { useState, useRef } from 'react';
 import neo4j from 'neo4j-driver';
 import KGGraph from './KGGraph';
-
-const NEO4J_URI = 'neo4j+s://7ca01e33.databases.neo4j.io';
-const NEO4J_USER = '7ca01e33';
-const NEO4J_PASSWORD = '72-s4g7miEWEV_ky_rSMKGIN3RYuJyYbxsR42qnCx0E';
+import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD } from '../config';
 
 // Khởi tạo driver bên ngoài để dùng chung
 const driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
