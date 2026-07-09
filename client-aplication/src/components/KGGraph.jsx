@@ -220,6 +220,51 @@ const KGGraph = ({ thingId, goalRootId, width, height }) => {
         linkCurvature={0.25}
         linkColor={() => 'rgba(255, 255, 255, 0.2)'}
         linkWidth={1.5}
+        linkLabel={(link) => {
+          const typeStr = link.properties?.type ? ` (${link.properties.type})` : '';
+          return `<div style="background: rgba(15, 23, 42, 0.9); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 11px; color: #fff;">
+                    <b>Liên kết:</b> <span style="color: #a78bfa; font-weight: bold;">${link.label}${typeStr}</span>
+                  </div>`;
+        }}
+        linkCanvasObjectMode={() => 'after'}
+        linkCanvasObject={(link, ctx, globalScale) => {
+          const start = link.source;
+          const end = link.target;
+
+          // Ignore unbound links during initialization
+          if (typeof start !== 'object' || typeof end !== 'object') return;
+
+          // Calculate middle position
+          const textPos = {
+            x: start.x + (end.x - start.x) * 0.5,
+            y: start.y + (end.y - start.y) * 0.5
+          };
+
+          const typeStr = link.properties?.type ? ` (${link.properties.type})` : '';
+          const label = `${link.label}${typeStr}`;
+
+          // Avoid rendering text if zoomed out too far
+          if (globalScale < 1.2) return;
+
+          const fontSize = 8 / globalScale;
+          ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+
+          // Draw small background for text readability
+          const textWidth = ctx.measureText(label).width;
+          const paddingX = 4 / globalScale;
+          const paddingY = 2 / globalScale;
+          const bgW = textWidth + paddingX;
+          const bgH = fontSize + paddingY;
+
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+          ctx.fillRect(textPos.x - bgW / 2, textPos.y - bgH / 2, bgW, bgH);
+
+          // Draw text label
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText(label, textPos.x, textPos.y);
+        }}
         nodeCanvasObject={(node, ctx, globalScale) => {
           const label = node.name;
           const fontSize = 12 / globalScale;
