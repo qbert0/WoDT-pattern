@@ -1,0 +1,35 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: ditto-ambassador
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: ${DITTO_CONNECT_TIMEOUT_MS:5000}
+            response-timeout: ${DITTO_RESPONSE_TIMEOUT:30s}
+ditto:
+  base-url: ${DITTO_BASE_URL}
+  credentials:
+    regular:
+      username: ${DITTO_USERNAME}
+      password: ${DITTO_PASSWORD}
+    devops:
+      username: ${DITTO_DEVOPS_USERNAME}
+      password: ${DITTO_DEVOPS_PASSWORD}
+  timeouts:
+    connect: ${DITTO_CONNECT_TIMEOUT:5s}
+    response: ${DITTO_RESPONSE_TIMEOUT:30s}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

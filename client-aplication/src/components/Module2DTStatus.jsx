@@ -6,12 +6,10 @@ import ObjectController from './ObjectController';
 import TargetGraphSetup from './TargetGraphSetup';
 import {
   DITTO_API_BASE_URL as BASE_URL,
-  DITTO_AUTHORIZATION,
   STATUS_POLL_INTERVAL_MS,
 } from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,
@@ -45,6 +43,7 @@ const Module2DTStatus = () => {
   const [graphSize, setGraphSize] = useState({ width: 300, height: 200 });
   const [graphRefreshKey, setGraphRefreshKey] = useState(0);
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const [showFullGraphModal, setShowFullGraphModal] = useState(false);
 
   useEffect(() => {
     if (graphContainerRef.current) {
@@ -221,10 +220,10 @@ const Module2DTStatus = () => {
                 LIVE
               </span>
             </div>
-            <button className="btn" style={{ padding: '2px 8px', fontSize: '0.7rem', background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }} onClick={() => navigate('/neo4j')}>Đầy đủ →</button>
+            <button className="btn" style={{ padding: '2px 8px', fontSize: '0.7rem', background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }} onClick={() => setShowFullGraphModal(true)}>Đầy đủ →</button>
           </div>
           <div ref={graphContainerRef} className="graph-container">
-              <KGGraph key={graphRefreshKey} thingId={thingId} width={graphSize.width} height={graphSize.height} />
+              <KGGraph key={graphRefreshKey} thingId={thingId} goalRootId={thing?.attributes?.goalRootId} width={graphSize.width} height={graphSize.height} />
           </div>
         </div>
 
@@ -396,6 +395,20 @@ const Module2DTStatus = () => {
             </div>
             <div style={{ maxHeight: '75vh', overflowY: 'auto', paddingRight: '0.5rem' }}>
               <TargetGraphSetup hidePreview={true} onGraphChange={() => setGraphRefreshKey(prev => prev + 1)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFullGraphModal && (
+        <div className="modal-overlay" onClick={() => setShowFullGraphModal(false)}>
+          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '90vw', width: '1000px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Biểu đồ mục tiêu đầy đủ - {thingId}</h2>
+              <button className="close-btn" onClick={() => setShowFullGraphModal(false)} style={{ fontSize: '1.5rem', background: 'transparent' }}>&times;</button>
+            </div>
+            <div style={{ height: '70vh', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', overflow: 'hidden' }}>
+              <KGGraph key={graphRefreshKey} thingId={thingId} goalRootId={thing?.attributes?.goalRootId} width={1000} height={window.innerHeight * 0.7} />
             </div>
           </div>
         </div>

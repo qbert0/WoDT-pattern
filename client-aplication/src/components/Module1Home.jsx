@@ -2,13 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DITTO_API_BASE_URL as BASE_URL,
-  DITTO_AUTHORIZATION,
   HOME_POLL_INTERVAL_MS,
   SEARCH_PAGE_SIZE,
 } from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,

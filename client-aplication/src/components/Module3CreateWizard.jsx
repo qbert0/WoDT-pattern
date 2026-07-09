@@ -2,12 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DITTO_API_BASE_URL as BASE_URL,
-  DITTO_AUTHORIZATION,
+  DIGITAL_TWIN_CREATE_BASE_URL,
   DITTO_POLICY_SUBJECT,
 } from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,
@@ -162,13 +161,17 @@ const Module3CreateWizard = () => {
 
       // 2. Create Thing
       const payload = buildFinalPayload();
-      const thingRes = await fetch(`${BASE_URL}/things/${encodeURIComponent(thingId)}`, {
+      const thingRes = await fetch(`${DIGITAL_TWIN_CREATE_BASE_URL}/${encodeURIComponent(thingId)}`, {
         method: 'PUT',
         headers: headers(),
         body: JSON.stringify(payload)
       });
       
       if (!thingRes.ok && thingRes.status !== 201 && thingRes.status !== 204) {
+        if (thingRes.status === 409) {
+          const conflict = await thingRes.json().catch(() => null);
+          throw new Error(conflict?.message || `Digital Twin "${thingId}" đã tồn tại.`);
+        }
         throw new Error(`Tạo Thing thất bại: ${thingRes.statusText}`);
       }
 
@@ -298,7 +301,7 @@ const Module3CreateWizard = () => {
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>Kiểm tra lại payload sẽ gửi đến Ditto API để tạo Thing:</p>
             <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '6px', border: '1px solid var(--border-color)', marginBottom: '2rem' }}>
               <pre style={{ color: '#6ee7b7', fontSize: '0.85rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-{`PUT /api/2/things/${thingId}
+{`PUT /api/digital-twins/${thingId}
 
 ${JSON.stringify(buildFinalPayload(), null, 2)}`}
               </pre>

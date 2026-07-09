@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { DITTO_API_BASE_URL as BASE_URL, DITTO_AUTHORIZATION } from '../config';
+import {
+  DITTO_API_BASE_URL as BASE_URL,
+  DIGITAL_TWIN_CREATE_BASE_URL,
+} from '../config';
 
 const headers = (extra = {}) => ({
-  'Authorization': DITTO_AUTHORIZATION,
   'Content-Type': 'application/json',
   'Accept': 'application/json',
   ...extra,
@@ -227,9 +229,18 @@ const ThingManager = () => {
       if (attrsParsed && Object.keys(attrsParsed).length) payload.attributes = attrsParsed;
 
       // Use POST (auto-ID) not applicable since user specifies ID → use PUT
-      const url = `${BASE_URL}/things/${thingId}`;
+      const encodedThingId = encodeURIComponent(thingId);
+      const url = modalMode === 'add'
+        ? `${DIGITAL_TWIN_CREATE_BASE_URL}/${encodedThingId}`
+        : `${BASE_URL}/things/${encodedThingId}`;
       const r = await fetch(url, { method: 'PUT', headers: headers(), body: JSON.stringify(payload) });
-      if (!r.ok && r.status !== 201 && r.status !== 204) throw new Error(`HTTP ${r.status} — ${r.statusText}`);
+      if (!r.ok && r.status !== 201 && r.status !== 204) {
+        if (r.status === 409) {
+          const conflict = await r.json().catch(() => null);
+          throw new Error(conflict?.message || `Digital Twin "${thingId}" already exists.`);
+        }
+        throw new Error(`HTTP ${r.status} — ${r.statusText}`);
+      }
       setIsModalOpen(false);
       fetchThings();
     } catch (e) { setError(e.message); }
