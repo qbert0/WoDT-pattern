@@ -22,3 +22,4 @@ ditto-ambassador/.env
 ditto-ambassador/target/
 client-aplication/node_modules/
 smart_kettle_simulator/.env
+smart_grinder_simulator/.env
