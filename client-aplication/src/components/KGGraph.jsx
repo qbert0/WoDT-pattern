@@ -17,7 +17,7 @@ try {
   console.error('Lỗi khởi tạo driver:', err);
 }
 
-const KGGraph = ({ thingId, width, height }) => {
+const KGGraph = ({ thingId, goalRootId, width, height }) => {
   const [data, setData] = useState({ nodes: [], links: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -32,51 +32,108 @@ const KGGraph = ({ thingId, width, height }) => {
         return;
       }
 
+      if (!goalRootId) {
+        if (isMounted) {
+          setData({ nodes: [], links: [] });
+          setLoading(false);
+        }
+        return;
+      }
+
       setLoading(true);
       setError(null);
       const session = driver.session();
 
       try {
-        // Query to get the graph structure
-        // We look for the thing itself and its related nodes up to 3 hops
-        // Or if thingId is not found, we show the whole graph as it's likely a small demo KG
-        const query = `
-          MATCH (n)-[r]->(m)
-          RETURN n, r, m
-          LIMIT ${NEO4J_QUERY_LIMIT}
-        `;
+        // If goalRootId is provided, retrieve the sub-graph for this specific DT.
+        // Otherwise, fall back to the default query which fetches all nodes up to a limit.
+        const query = goalRootId
+          ? `
+            MATCH path = (root:Goal {id: $goalRootId})-[:REFINES|DELEGATED_TO|OPERATIONALIZED_BY*0..5]-(m)
+            RETURN path
+          `
+          : `
+            MATCH (n)-[r]->(m)
+            RETURN n, r, m
+            LIMIT ${NEO4J_QUERY_LIMIT}
+          `;
 
-        const result = await session.run(query);
+        const result = await session.run(query, { goalRootId });
 
         const nodesMap = new Map();
         const links = [];
+        const seenLinks = new Set();
 
         result.records.forEach(record => {
-          const n = record.get('n');
-          const m = record.get('m');
-          const r = record.get('r');
+          if (goalRootId) {
+            const path = record.get('path');
+            if (path) {
+              const startNode = path.start;
+              const endNode = path.end;
 
-          // Process nodes
-          [n, m].forEach(node => {
-            if (!nodesMap.has(node.identity.toString())) {
-              const props = node.properties;
-              nodesMap.set(node.identity.toString(), {
-                id: node.identity.toString(),
-                name: props.name || props.id || node.labels[0] || 'Unknown',
-                type: node.labels[0] || 'Node',
-                properties: props,
-                val: node.labels[0] === 'Agent' ? 15 : (node.labels[0] === 'Goal' ? 12 : 8)
+              [startNode, endNode].forEach(node => {
+                if (node && !nodesMap.has(node.identity.toString())) {
+                  const props = node.properties;
+                  nodesMap.set(node.identity.toString(), {
+                    id: node.identity.toString(),
+                    name: props.name || props.id || node.labels[0] || 'Unknown',
+                    type: node.labels[0] || 'Node',
+                    properties: props,
+                    val: node.labels[0] === 'Agent' ? 15 : (node.labels[0] === 'Goal' ? 12 : 8)
+                  });
+                }
+              });
+
+              path.segments.forEach(segment => {
+                const n = segment.start;
+                const m = segment.end;
+                const r = segment.relationship;
+
+                const linkKey = `${r.start.toString()}-${r.end.toString()}-${r.type}`;
+                if (!seenLinks.has(linkKey)) {
+                  seenLinks.add(linkKey);
+                  links.push({
+                    source: r.start.toString(),
+                    target: r.end.toString(),
+                    label: r.type,
+                    properties: r.properties
+                  });
+                }
               });
             }
-          });
+          } else {
+            const n = record.get('n');
+            const m = record.get('m');
+            const r = record.get('r');
 
-          // Process relationship
-          links.push({
-            source: r.start.toString(),
-            target: r.end.toString(),
-            label: r.type,
-            properties: r.properties
-          });
+            // Process nodes
+            [n, m].forEach(node => {
+              if (node && !nodesMap.has(node.identity.toString())) {
+                const props = node.properties;
+                nodesMap.set(node.identity.toString(), {
+                  id: node.identity.toString(),
+                  name: props.name || props.id || node.labels[0] || 'Unknown',
+                  type: node.labels[0] || 'Node',
+                  properties: props,
+                  val: node.labels[0] === 'Agent' ? 15 : (node.labels[0] === 'Goal' ? 12 : 8)
+                });
+              }
+            });
+
+            // Process relationship
+            if (r) {
+              const linkKey = `${r.start.toString()}-${r.end.toString()}-${r.type}`;
+              if (!seenLinks.has(linkKey)) {
+                seenLinks.add(linkKey);
+                links.push({
+                  source: r.start.toString(),
+                  target: r.end.toString(),
+                  label: r.type,
+                  properties: r.properties
+                });
+              }
+            }
+          }
         });
 
         if (isMounted) {
@@ -102,7 +159,7 @@ const KGGraph = ({ thingId, width, height }) => {
     return () => {
       isMounted = false;
     };
-  }, [thingId]);
+  }, [thingId, goalRootId]);
 
   const getNodeColor = (node) => {
     switch (node.type) {
@@ -163,6 +220,51 @@ const KGGraph = ({ thingId, width, height }) => {
         linkCurvature={0.25}
         linkColor={() => 'rgba(255, 255, 255, 0.2)'}
         linkWidth={1.5}
+        linkLabel={(link) => {
+          const typeStr = link.properties?.type ? ` (${link.properties.type})` : '';
+          return `<div style="background: rgba(15, 23, 42, 0.9); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 11px; color: #fff;">
+                    <b>Liên kết:</b> <span style="color: #a78bfa; font-weight: bold;">${link.label}${typeStr}</span>
+                  </div>`;
+        }}
+        linkCanvasObjectMode={() => 'after'}
+        linkCanvasObject={(link, ctx, globalScale) => {
+          const start = link.source;
+          const end = link.target;
+
+          // Ignore unbound links during initialization
+          if (typeof start !== 'object' || typeof end !== 'object') return;
+
+          // Calculate middle position
+          const textPos = {
+            x: start.x + (end.x - start.x) * 0.5,
+            y: start.y + (end.y - start.y) * 0.5
+          };
+
+          const typeStr = link.properties?.type ? ` (${link.properties.type})` : '';
+          const label = `${link.label}${typeStr}`;
+
+          // Avoid rendering text if zoomed out too far
+          if (globalScale < 1.2) return;
+
+          const fontSize = 8 / globalScale;
+          ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+
+          // Draw small background for text readability
+          const textWidth = ctx.measureText(label).width;
+          const paddingX = 4 / globalScale;
+          const paddingY = 2 / globalScale;
+          const bgW = textWidth + paddingX;
+          const bgH = fontSize + paddingY;
+
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+          ctx.fillRect(textPos.x - bgW / 2, textPos.y - bgH / 2, bgW, bgH);
+
+          // Draw text label
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText(label, textPos.x, textPos.y);
+        }}
         nodeCanvasObject={(node, ctx, globalScale) => {
           const label = node.name;
           const fontSize = 12 / globalScale;

@@ -7,7 +7,7 @@ import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD } from '../config';
 const driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
 console.log('Driver TargetGraphSetup khởi tạo:', NEO4J_URI);
 
-const TargetGraphSetup = () => {
+const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
   const [activeTab, setActiveTab] = useState('node');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: '', message: '' });
@@ -42,6 +42,9 @@ const TargetGraphSetup = () => {
     try {
       await session.run(query, params);
       showStatus('success', 'Thực thi thành công!');
+      if (onGraphChange) {
+        onGraphChange();
+      }
     } catch (err) {
       console.error('Neo4j Error:', err);
       showStatus('danger', `Lỗi: ${err.message}`);
@@ -119,19 +122,55 @@ const TargetGraphSetup = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    const extension = file.name.split('.').pop().toLowerCase();
+
     const reader = new FileReader();
     reader.onload = async (event) => {
       const content = event.target.result;
-      // Split content by semicolon to run multiple queries if needed
-      const queries = content.split(';').filter(q => q.trim().length > 0);
+      let queries = [];
+
+      if (extension === 'md' || extension === 'markdown') {
+        const regex = /```(?:cypher|neo4j)?([\s\S]*?)```/gi;
+        let match;
+        const blocks = [];
+        while ((match = regex.exec(content)) !== null) {
+          blocks.push(match[1].trim());
+        }
+
+        if (blocks.length > 0) {
+          queries = blocks
+            .join('\n')
+            .split(';')
+            .map(q => q.trim())
+            .filter(q => q.length > 0);
+        } else {
+          queries = content
+            .split(';')
+            .map(q => q.trim())
+            .filter(q => q.length > 0);
+        }
+      } else {
+        queries = content
+          .split(';')
+          .map(q => q.trim())
+          .filter(q => q.length > 0);
+      }
+
+      if (queries.length === 0) {
+        showStatus('danger', 'Không tìm thấy câu truy vấn nào hợp lệ trong file.');
+        return;
+      }
 
       setLoading(true);
       const session = driver.session();
       try {
         for (const query of queries) {
-          await session.run(query.trim());
+          await session.run(query);
         }
         showStatus('success', `Đã thực thi ${queries.length} câu truy vấn từ file.`);
+        if (onGraphChange) {
+          onGraphChange();
+        }
       } catch (err) {
         showStatus('danger', `Lỗi khi chạy file: ${err.message}`);
       } finally {
@@ -325,16 +364,16 @@ const TargetGraphSetup = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', justifyContent: 'center', padding: '2rem', border: '2px dashed var(--border-color)', borderRadius: '12px' }}>
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📁</div>
             <div style={{ textAlign: 'center' }}>
-              <h3 style={{ marginBottom: '0.5rem' }}>Tải lên file Cypher</h3>
+              <h3 style={{ marginBottom: '0.5rem' }}>Tải lên file Cypher / Markdown</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-                Hỗ trợ file .cypher hoặc .txt chứa các câu lệnh CREATE, MATCH...
+                Hỗ trợ file .cypher, .txt, .md hoặc .markdown chứa các câu lệnh (tự động trích xuất các block ```cypher trong markdown)
               </p>
             </div>
             <input
               type="file"
               ref={fileInputRef}
               style={{ display: 'none' }}
-              accept=".cypher,.txt"
+              accept=".cypher,.txt,.md,.markdown"
               onChange={handleFileUpload}
             />
             <button
@@ -352,13 +391,14 @@ const TargetGraphSetup = () => {
         Kết nối trực tiếp tới Neo4j Instance: <code style={{ color: 'var(--primary)' }}>{NEO4J_URI}</code>
       </div>
 
-      {/* Live Preview */}
-      <div style={{ marginTop: '2rem', flex: 1, minHeight: '400px', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
-        <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--text-main)' }}>Xem trước Biểu đồ</h3>
-        <div style={{ height: '350px', width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflow: 'hidden' }}>
-          <KGGraph key={status.message} width={800} height={350} />
+      {!hidePreview && (
+        <div style={{ marginTop: '2rem', flex: 1, minHeight: '400px', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--text-main)' }}>Xem trước Biểu đồ</h3>
+          <div style={{ height: '350px', width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflow: 'hidden' }}>
+            <KGGraph key={status.message} width={800} height={350} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

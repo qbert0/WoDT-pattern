@@ -21,5 +21,20 @@ client-aplication/.env
 ditto-ambassador/.env
 ditto-ambassador/target/
 client-aplication/node_modules/
+
+# IDE settings
+.idea/
+**/.idea/
+
+# Python Virtual Environments & Cache
+.venv/
+**/.venv/
+**/__pycache__/
+*.pyc
+
+# Neo4j Database runtime/logs
+neo4j/data/
+neo4j/logs/
+neo4j/run/
 smart_kettle_simulator/.env
 smart_grinder_simulator/.env
