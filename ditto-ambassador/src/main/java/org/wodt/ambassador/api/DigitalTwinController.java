@@ -8,16 +8,19 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.wodt.ambassador.config.DittoProperties;
 import reactor.core.publisher.Mono;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
@@ -37,13 +40,36 @@ public class DigitalTwinController {
     private final WebClient webClient;
     private final DittoProperties properties;
     private final ObjectMapper objectMapper;
+    private final GoalRootUniquenessService goalRootUniquenessService;
 
     public DigitalTwinController(WebClient dittoWebClient,
                                  DittoProperties properties,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 GoalRootUniquenessService goalRootUniquenessService) {
         this.webClient = dittoWebClient;
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.goalRootUniquenessService = goalRootUniquenessService;
+    }
+
+    @GetMapping(path = "/goal-root-availability", produces = MediaType.APPLICATION_JSON_VALUE)
+    public Mono<ResponseEntity<GoalRootAvailability>> getGoalRootAvailability(
+            @RequestParam String goalRootId) {
+        String normalizedGoalRootId = goalRootId.trim();
+        if (normalizedGoalRootId.isEmpty()) {
+            return Mono.just(ResponseEntity.badRequest().build());
+        }
+
+        return goalRootUniquenessService.findOwningThingId(normalizedGoalRootId)
+                .map(owner -> ResponseEntity.ok(new GoalRootAvailability(
+                        normalizedGoalRootId,
+                        owner.isEmpty(),
+                        owner.orElse(null)
+                )))
+                .onErrorResume(error -> {
+                    LOGGER.warn("Could not verify Goal Root ID {}", normalizedGoalRootId, error);
+                    return Mono.just(ResponseEntity.status(upstreamFailureStatus(error)).build());
+                });
     }
 
     @PutMapping(path = "/{thingId}", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -51,6 +77,35 @@ public class DigitalTwinController {
                                                            @RequestBody byte[] payload) {
         long startedAt = System.nanoTime();
 
+        String goalRootId = extractGoalRootId(payload);
+        Mono<ResponseEntity<byte[]>> operation = goalRootId == null
+                ? createAtDitto(thingId, payload)
+                : goalRootUniquenessService.findOwningThingId(goalRootId)
+                        .flatMap(owner -> {
+                            if (owner.isPresent()) {
+                                String conflictingThingId = owner.get();
+                                return Mono.just(jsonError(HttpStatus.CONFLICT, new ApiError(
+                                        "GOAL_ROOT_ALREADY_EXISTS",
+                                        "Goal Root ID '" + goalRootId + "' is already used by Digital Twin '"
+                                                + conflictingThingId + "'.",
+                                        thingId
+                                )));
+                            }
+                            return createAtDitto(thingId, payload);
+                        });
+
+        return operation
+                .onErrorResume(error -> mapUpstreamFailure(thingId, error))
+                .doOnEach(signal -> {
+                    if (signal.isOnNext()) {
+                        long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000;
+                        LOGGER.info("Create digital twin {} -> {} ({} ms)", thingId,
+                                signal.get().getStatusCode().value(), elapsedMs);
+                    }
+                });
+    }
+
+    private Mono<ResponseEntity<byte[]>> createAtDitto(String thingId, byte[] payload) {
         return webClient.put()
                 .uri(uriBuilder -> uriBuilder.path("/api/2/things/{thingId}").build(thingId))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -64,15 +119,22 @@ public class DigitalTwinController {
                 .exchangeToMono(response -> response.bodyToMono(byte[].class)
                         .defaultIfEmpty(new byte[0])
                         .map(body -> mapDittoResponse(thingId, response.statusCode().value(),
-                                response.headers().asHttpHeaders(), body)))
-                .onErrorResume(error -> mapUpstreamFailure(thingId, error))
-                .doOnEach(signal -> {
-                    if (signal.isOnNext()) {
-                        long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000;
-                        LOGGER.info("Create digital twin {} -> {} ({} ms)", thingId,
-                                signal.get().getStatusCode().value(), elapsedMs);
-                    }
-                });
+                                response.headers().asHttpHeaders(), body)));
+    }
+
+    private String extractGoalRootId(byte[] payload) {
+        try {
+            JsonNode root = objectMapper.readTree(payload);
+            JsonNode goalRootNode = root.path("attributes").path("goalRootId");
+            if (!goalRootNode.isTextual()) {
+                return null;
+            }
+
+            String goalRootId = goalRootNode.asText().trim();
+            return goalRootId.isEmpty() ? null : goalRootId;
+        } catch (RuntimeException error) {
+            return null;
+        }
     }
 
     private ResponseEntity<byte[]> mapDittoResponse(String thingId, int status,
@@ -102,9 +164,8 @@ public class DigitalTwinController {
                     "DITTO_RESPONSE_TOO_LARGE", "Ditto returned a response that is too large.", thingId)));
         }
 
-        boolean timedOut = hasCause(error, ReadTimeoutException.class)
-                || hasCause(error, TimeoutException.class);
-        HttpStatus status = timedOut ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.BAD_GATEWAY;
+        HttpStatus status = upstreamFailureStatus(error);
+        boolean timedOut = status == HttpStatus.GATEWAY_TIMEOUT;
         String code = timedOut ? "DITTO_TIMEOUT" : "DITTO_UNAVAILABLE";
         String message = timedOut ? "Ditto did not respond before the configured timeout."
                 : "Could not connect to Ditto.";
@@ -113,6 +174,12 @@ public class DigitalTwinController {
             LOGGER.warn("Unexpected error while creating Digital Twin {}", thingId, error);
         }
         return Mono.just(jsonError(status, new ApiError(code, message, thingId)));
+    }
+
+    private HttpStatus upstreamFailureStatus(Throwable error) {
+        boolean timedOut = hasCause(error, ReadTimeoutException.class)
+                || hasCause(error, TimeoutException.class);
+        return timedOut ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.BAD_GATEWAY;
     }
 
     private ResponseEntity<byte[]> jsonError(HttpStatus status, ApiError error) {

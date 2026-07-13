@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DITTO_API_BASE_URL as BASE_URL,
   DIGITAL_TWIN_CREATE_BASE_URL,
   DITTO_POLICY_SUBJECT,
+  SEARCH_PAGE_SIZE,
 } from '../config';
+import {
+  mergeCompositionIntoPayload,
+  normalizeThingCatalog,
+} from '../utils/digitalTwinComposition';
 
 const headers = (extra = {}) => ({
   'Content-Type': 'application/json',
@@ -55,6 +60,16 @@ const Module3CreateWizard = () => {
   // Step 2 Data
   const [defType, setDefType] = useState('json'); // 'url' | 'json'
   const [defUrl, setDefUrl] = useState('');
+  const [goalRootId, setGoalRootId] = useState('');
+  const [goalRootTouched, setGoalRootTouched] = useState(false);
+  const [goalRootAvailability, setGoalRootAvailability] = useState(null);
+  const [goalRootChecking, setGoalRootChecking] = useState(false);
+  const [goalRootCheckError, setGoalRootCheckError] = useState(null);
+  const [thingCatalog, setThingCatalog] = useState({ thingIds: [] });
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogLoadAttempted, setCatalogLoadAttempted] = useState(false);
+  const [catalogError, setCatalogError] = useState(null);
+  const [selectedComponentThingIds, setSelectedComponentThingIds] = useState([]);
   const [defJson, setDefJson] = useState(`{
   "definition": "com.acme:coffeebrewer:0.1.0",
   "attributes": {
@@ -95,6 +110,121 @@ const Module3CreateWizard = () => {
 
   const thingId = `${namespace}:${thingName}`;
 
+  const loadThingCatalog = useCallback(async ({ showLoading = true } = {}) => {
+    if (showLoading) setCatalogLoading(true);
+    setCatalogLoadAttempted(true);
+    setCatalogError(null);
+
+    try {
+      let things = [];
+      let cursor = null;
+      const visitedCursors = new Set();
+      let shouldUseFallback = false;
+
+      do {
+        const options = [`size(${SEARCH_PAGE_SIZE})`];
+        if (cursor) options.push(`cursor(${cursor})`);
+        const params = new URLSearchParams({ option: options.join(',') });
+        const response = await fetch(`${BASE_URL}/search/things?${params}`, { headers: headers() });
+
+        if (!response.ok) {
+          if (!cursor && [400, 404, 501].includes(response.status)) {
+            shouldUseFallback = true;
+            break;
+          }
+          throw new Error(`Search API trả về HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        things = [...things, ...(Array.isArray(data?.items) ? data.items : [])];
+
+        const nextCursor = typeof data?.cursor === 'string' ? data.cursor.trim() : '';
+        if (!nextCursor || visitedCursors.has(nextCursor)) {
+          cursor = null;
+        } else {
+          visitedCursors.add(nextCursor);
+          cursor = nextCursor;
+        }
+      } while (cursor);
+
+      if (shouldUseFallback) {
+        const response = await fetch(`${BASE_URL}/things`, { headers: headers() });
+        if (!response.ok) throw new Error(`Things API trả về HTTP ${response.status}`);
+
+        const data = await response.json();
+        things = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+      }
+
+      const catalog = normalizeThingCatalog(things, thingId);
+      setThingCatalog(catalog);
+      setSelectedComponentThingIds(current => (
+        current.filter(selectedThingId => catalog.thingIds.includes(selectedThingId))
+      ));
+      return catalog;
+    } catch (catalogFetchError) {
+      setThingCatalog({ thingIds: [] });
+      setCatalogError(`Không thể tải danh sách Digital Twin: ${catalogFetchError.message}`);
+      return null;
+    } finally {
+      if (showLoading) setCatalogLoading(false);
+    }
+  }, [thingId]);
+
+  useEffect(() => {
+    setThingCatalog({ thingIds: [] });
+    setCatalogLoadAttempted(false);
+  }, [thingId]);
+
+  useEffect(() => {
+    if (step === 2 && !catalogLoading && !catalogLoadAttempted) {
+      loadThingCatalog();
+    }
+  }, [catalogLoadAttempted, catalogLoading, loadThingCatalog, step]);
+
+  const normalizedGoalRootId = goalRootId.trim();
+  const displayedGoalRootAvailability = goalRootAvailability?.goalRootId === normalizedGoalRootId
+    ? goalRootAvailability
+    : null;
+  const availableComponentThingIds = thingCatalog.thingIds.filter(
+    existingThingId => !selectedComponentThingIds.includes(existingThingId)
+  );
+
+  const checkGoalRootAvailability = useCallback(async (rawGoalRootId = goalRootId) => {
+    const normalizedValue = rawGoalRootId.trim();
+    if (!normalizedValue) {
+      setGoalRootAvailability(null);
+      return { goalRootId: '', available: false, conflictingThingId: null, required: true };
+    }
+
+    setGoalRootChecking(true);
+    setGoalRootCheckError(null);
+    try {
+      const params = new URLSearchParams({ goalRootId: normalizedValue });
+      const response = await fetch(
+        `${DIGITAL_TWIN_CREATE_BASE_URL}/goal-root-availability?${params}`,
+        { headers: headers() }
+      );
+      if (!response.ok) throw new Error(`Ambassador trả về HTTP ${response.status}`);
+
+      const data = await response.json();
+      const result = {
+        goalRootId: normalizedValue,
+        available: data.available === true,
+        conflictingThingId: typeof data.conflictingThingId === 'string'
+          ? data.conflictingThingId
+          : null,
+      };
+      setGoalRootAvailability(result);
+      return result;
+    } catch (availabilityError) {
+      setGoalRootAvailability(null);
+      setGoalRootCheckError(`Không thể kiểm tra Goal Root ID: ${availabilityError.message}`);
+      return null;
+    } finally {
+      setGoalRootChecking(false);
+    }
+  }, [goalRootId]);
+
   const handleTestConnection = () => {
     // Mocking connection test for UI
     setTestConnStatus('loading');
@@ -103,18 +233,41 @@ const Module3CreateWizard = () => {
     }, 1000);
   };
 
-  const nextStep = () => {
+  const nextStep = async () => {
     if (step === 1 && (!namespace || !thingName)) {
       setError("Vui lòng nhập Namespace và Thing Name hợp lệ.");
       return;
     }
-    if (step === 2 && defType === 'json') {
-      try {
-        JSON.parse(defJson);
-      } catch (e) {
-        setError("JSON Payload không hợp lệ. Vui lòng kiểm tra lại cú pháp.");
+    if (step === 2) {
+      setGoalRootTouched(true);
+
+      if (!normalizedGoalRootId) {
+        setError('Vui lòng nhập Goal Root ID.');
         return;
       }
+      const availability = displayedGoalRootAvailability
+        ?? await checkGoalRootAvailability(normalizedGoalRootId);
+      if (!availability) {
+        setError('Không thể xác minh Goal Root ID qua ambassador. Vui lòng thử lại.');
+        return;
+      }
+      if (!availability.available) {
+        setError(`Goal Root ID đã được sử dụng bởi Digital Twin "${availability.conflictingThingId}".`);
+        return;
+      }
+      if (defType === 'json') {
+        try {
+          const parsed = JSON.parse(defJson);
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('JSON root must be an object');
+          }
+        } catch (e) {
+          setError("JSON Payload không hợp lệ. Vui lòng nhập một JSON object hợp lệ.");
+          return;
+        }
+      }
+
+      setGoalRootId(normalizedGoalRootId);
     }
     setError(null);
     setStep(prev => Math.min(prev + 1, 4));
@@ -123,29 +276,47 @@ const Module3CreateWizard = () => {
   const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
 
   const buildFinalPayload = () => {
-    let payload = {
+    let basePayload = {
       policyId: policyId
     };
     if (defType === 'url') {
-      if (defUrl) payload.definition = defUrl;
-      payload.attributes = {};
-      payload.features = {};
+      if (defUrl) basePayload.definition = defUrl;
     } else if (defType === 'json') {
        try {
          const parsed = JSON.parse(defJson);
-         payload = { ...parsed, policyId: policyId };
+         basePayload = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+           ? { ...parsed, policyId: policyId }
+           : { policyId: policyId };
        } catch (e) {
-         payload.attributes = {};
-         payload.features = {};
+         basePayload = { policyId: policyId };
        }
     }
-    return payload;
+    return mergeCompositionIntoPayload(basePayload, {
+      goalRootId,
+      thingIds: selectedComponentThingIds,
+    });
   };
 
   const handleCreate = async () => {
     setLoading(true);
     setError(null);
     try {
+      if (selectedComponentThingIds.length > 0) {
+        const latestCatalog = await loadThingCatalog({ showLoading: false });
+        if (!latestCatalog) {
+          setStep(2);
+          throw new Error('Không thể tải lại danh sách Digital Twin thành phần. Vui lòng thử lại.');
+        }
+
+        const unavailableComponents = selectedComponentThingIds.filter(
+          selectedThingId => !latestCatalog.thingIds.includes(selectedThingId)
+        );
+        if (unavailableComponents.length > 0) {
+          setStep(2);
+          throw new Error(`Digital Twin thành phần không còn tồn tại: ${unavailableComponents.join(', ')}.`);
+        }
+      }
+
       // 1. Create Policy first if it's not the default one or if we want to enforce it.
       // We will try to create the policy. If it exists, it might return 204 or 409 depending on exact endpoint.
       // Often PUT /policies/{id} updates/creates.
@@ -266,6 +437,116 @@ const Module3CreateWizard = () => {
                 <textarea rows={10} value={defJson} onChange={e => setDefJson(e.target.value)} style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} />
               </div>
             )}
+
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Cấu trúc Digital Twin</h3>
+              <div className="form-group">
+                <label>Goal Root ID <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <input
+                  type="text"
+                  value={goalRootId}
+                  onChange={event => {
+                    setGoalRootId(event.target.value);
+                    setGoalRootTouched(true);
+                    setGoalRootAvailability(null);
+                    setGoalRootCheckError(null);
+                  }}
+                  onBlur={() => {
+                    setGoalRootTouched(true);
+                    if (goalRootId.trim()) checkGoalRootAvailability();
+                  }}
+                  placeholder="VD: G_GRINDER_ROOT"
+                  disabled={goalRootChecking}
+                />
+                {goalRootTouched && !normalizedGoalRootId && (
+                  <small style={{ color: '#fca5a5', display: 'block', marginTop: '0.5rem' }}>
+                    Goal Root ID là bắt buộc.
+                  </small>
+                )}
+                {displayedGoalRootAvailability && !displayedGoalRootAvailability.available && (
+                  <small style={{ color: '#fca5a5', display: 'block', marginTop: '0.5rem' }}>
+                    ID này đã được sử dụng bởi {displayedGoalRootAvailability.conflictingThingId}.
+                  </small>
+                )}
+                {displayedGoalRootAvailability?.available && (
+                  <small style={{ color: 'var(--success)', display: 'block', marginTop: '0.5rem' }}>
+                    Goal Root ID có thể sử dụng.
+                  </small>
+                )}
+                {goalRootChecking && (
+                  <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '0.5rem' }}>
+                    Đang kiểm tra với ambassador…
+                  </small>
+                )}
+                {goalRootCheckError && (
+                  <small style={{ color: '#fca5a5', display: 'block', marginTop: '0.5rem' }}>
+                    {goalRootCheckError}
+                  </small>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>Digital Twin thành phần (không bắt buộc)</label>
+                {catalogLoading ? (
+                  <div style={{ color: 'var(--text-muted)', padding: '0.75rem 0' }}>Đang tải danh sách Digital Twin…</div>
+                ) : catalogError ? (
+                  <div style={{ padding: '0.75rem', border: '1px solid var(--danger)', borderRadius: '6px', background: 'rgba(239,68,68,0.1)' }}>
+                    <div style={{ color: '#fca5a5', marginBottom: '0.75rem' }}>{catalogError}</div>
+                    <button type="button" className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => loadThingCatalog()}>
+                      ↻ Thử tải lại
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      value=""
+                      onChange={event => {
+                        const selectedThingId = event.target.value;
+                        if (selectedThingId) {
+                          setSelectedComponentThingIds(current => [...current, selectedThingId]);
+                        }
+                      }}
+                      disabled={availableComponentThingIds.length === 0}
+                    >
+                      <option value="">
+                        {availableComponentThingIds.length > 0
+                          ? 'Chọn một Digital Twin để thêm…'
+                          : 'Không còn Digital Twin khả dụng'}
+                      </option>
+                      {availableComponentThingIds.map(componentThingId => (
+                        <option key={componentThingId} value={componentThingId}>{componentThingId}</option>
+                      ))}
+                    </select>
+
+                    {thingCatalog.thingIds.length === 0 && (
+                      <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '0.5rem' }}>
+                        Chưa có Digital Twin nào có thể chọn làm thành phần.
+                      </small>
+                    )}
+
+                    {selectedComponentThingIds.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
+                        {selectedComponentThingIds.map(componentThingId => (
+                          <span key={componentThingId} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 0.65rem', borderRadius: '999px', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.45)', color: '#bfdbfe', maxWidth: '100%' }}>
+                            <span style={{ wordBreak: 'break-all' }}>{componentThingId}</span>
+                            <button
+                              type="button"
+                              aria-label={`Xóa ${componentThingId}`}
+                              onClick={() => setSelectedComponentThingIds(current => (
+                                current.filter(selectedThingId => selectedThingId !== componentThingId)
+                              ))}
+                              style={{ border: 0, background: 'transparent', color: '#fca5a5', cursor: 'pointer', fontSize: '1rem' }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -316,7 +597,11 @@ ${JSON.stringify(buildFinalPayload(), null, 2)}`}
           </button>
           
           {step < 4 ? (
-            <button className="btn btn-primary" onClick={nextStep}>
+            <button
+              className="btn btn-primary"
+              onClick={nextStep}
+              disabled={loading || (step === 2 && goalRootChecking)}
+            >
               Tiếp tục →
             </button>
           ) : (
