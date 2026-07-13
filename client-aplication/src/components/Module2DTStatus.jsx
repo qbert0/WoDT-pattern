@@ -172,9 +172,6 @@ const Module2DTStatus = () => {
           <span className="dt-namespace" style={{ fontSize: '1rem' }}>{thingId}</span>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn btn-primary" onClick={() => setShowSetupModal(true)}>
-            ⚙ Thiết lập Biểu đồ
-          </button>
           <button className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => navigate('/')}>
             ← Quay lại danh sách
           </button>
@@ -231,7 +228,7 @@ const Module2DTStatus = () => {
         </div>
 
 
-        <div className="glass-panel panel-f" style={{ gridColumn: 'span 6', minHeight: '400px' }}>
+        <div className="glass-panel panel-f" style={{ gridColumn: 'span 6', height: '400px' }}>
           <ObjectController thingId={thingId} goalRootId={thing?.attributes?.goalRootId} onAction={handleControllerAction} onOpenSetup={() => setShowSetupModal(true)} />
         </div>
 
