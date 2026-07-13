@@ -2,18 +2,19 @@
   "name": "Smart Kettle MQTT Connection",
   "connectionType": "mqtt",
   "connectionStatus": "open",
-  "uri": "tcp://35.240.154.27:1883",
+  "uri": "tcp://34.143.166.45:1883",
   "sources": [
     {
       "addresses": [
         "smart-home/kettle-01/things/twin/commands/modify",
-        "smart-home/kettle-01/things/twin/messages/#",
-        "smart-home/kettle-01/things/live/messages/#"
+        "smart-home/kettle-01/things/live/messages/+/response"
       ],
+      "consumerCount": 1,
       "qos": 0,
       "authorizationContext": [
         "nginx:ditto"
       ],
+      "headerMapping": {},
       "payloadMapping": [
         "Ditto"
       ]
@@ -21,7 +22,7 @@
   ],
   "targets": [
     {
-      "address": "smart-home/kettle-01/things/live/messages/{{ header:subject }}",
+      "address": "smart-home/{{ thing:name }}/things/live/messages/{{ topic:subject }}",
       "topics": [
         "_/_/things/live/messages"
       ],
@@ -29,6 +30,7 @@
       "authorizationContext": [
         "nginx:ditto"
       ],
+      "headerMapping": {},
       "payloadMapping": [
         "Ditto"
       ]
