@@ -15,6 +15,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
@@ -22,6 +23,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -88,6 +90,98 @@ class AmbassadorIntegrationTest {
                 .expectHeader().valueEquals(HttpHeaders.ETAG, "\"rev:1\"")
                 .expectBody()
                 .jsonPath("$.thingId").isEqualTo("org.example:machine-1");
+    }
+
+    @Test
+    void reportsGoalRootAvailabilityFromDittoSearch() {
+        HANDLER.set(exchange -> {
+            assertThat(exchange.getRequestURI().getPath()).isEqualTo("/api/2/search/things");
+            assertThat(URLDecoder.decode(exchange.getRequestURI().getRawQuery(), StandardCharsets.UTF_8))
+                    .contains("filter=eq(attributes/goalRootId,\"G_USED\")")
+                    .contains("option=size(1)");
+            assertThat(exchange.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION)).isEqualTo(REGULAR_AUTH);
+            exchange.getResponseHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+            respond(exchange, 200, "{\"items\":[{\"thingId\":\"smart-home:grinder\"}]}");
+        });
+
+        client.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/digital-twins/goal-root-availability")
+                        .queryParam("goalRootId", " G_USED ")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.goalRootId").isEqualTo("G_USED")
+                .jsonPath("$.available").isEqualTo(false)
+                .jsonPath("$.conflictingThingId").isEqualTo("smart-home:grinder");
+    }
+
+    @Test
+    void rejectsCreateWhenGoalRootIdAlreadyExists() {
+        AtomicBoolean putAttempted = new AtomicBoolean();
+        HANDLER.set(exchange -> {
+            if (exchange.getRequestURI().getPath().equals("/api/2/search/things")) {
+                exchange.getResponseHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+                respond(exchange, 200, "{\"items\":[{\"thingId\":\"smart-home:grinder\"}]}");
+                return;
+            }
+            putAttempted.set(true);
+            respond(exchange, 201, "{}");
+        });
+
+        client.put()
+                .uri("/api/digital-twins/smart-home:parent")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"attributes\":{\"goalRootId\":\"G_USED\"}}")
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("GOAL_ROOT_ALREADY_EXISTS")
+                .jsonPath("$.message").value(message -> assertThat(message.toString())
+                        .contains("smart-home:grinder"));
+
+        assertThat(putAttempted).isFalse();
+    }
+
+    @Test
+    void createsThingWhenGoalRootIdIsAvailable() {
+        AtomicInteger requestCount = new AtomicInteger();
+        HANDLER.set(exchange -> {
+            requestCount.incrementAndGet();
+            if (exchange.getRequestURI().getPath().equals("/api/2/search/things")) {
+                exchange.getResponseHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+                respond(exchange, 200, "{\"items\":[]}");
+                return;
+            }
+
+            assertThat(exchange.getRequestURI().getPath()).isEqualTo("/api/2/things/smart-home:parent");
+            assertThat(exchange.getRequestHeaders().getFirst("If-None-Match")).isEqualTo("*");
+            respond(exchange, 201, "{}");
+        });
+
+        client.put()
+                .uri("/api/digital-twins/smart-home:parent")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"attributes\":{\"goalRootId\":\"G_AVAILABLE\"}}")
+                .exchange()
+                .expectStatus().isCreated();
+
+        assertThat(requestCount).hasValue(2);
+    }
+
+    @Test
+    void refusesCreateWhenGoalRootUniquenessCannotBeVerified() {
+        HANDLER.set(exchange -> respond(exchange, 503, "{\"status\":503}"));
+
+        client.put()
+                .uri("/api/digital-twins/smart-home:parent")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"attributes\":{\"goalRootId\":\"G_UNVERIFIED\"}}")
+                .exchange()
+                .expectStatus().isEqualTo(502)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("DITTO_UNAVAILABLE");
     }
 
     @Test
