@@ -46,15 +46,23 @@ class GrinderMQTTBridge:
             print("Missing dependency: paho-mqtt")
             return False
 
-        self.client = mqtt.Client(client_id=f"grinder_bridge_{self.mode}_{self.thing_id}")
-        if self.username:
-            self.client.username_pw_set(self.username, self.password)
-        self.client.on_connect = self._on_connect
-        self.client.on_message = self._on_message
-        self.client.connect(self.broker_host, self.broker_port, 60)
-        self.client.loop_start()
-        time.sleep(1)
-        return True
+        try:
+            self.client = mqtt.Client(client_id=f"grinder_bridge_{self.mode}_{self.thing_id}")
+            if self.username:
+                self.client.username_pw_set(self.username, self.password)
+            self.client.on_connect = self._on_connect
+            self.client.on_message = self._on_message
+            self.client.connect(self.broker_host, self.broker_port, 60)
+            self.client.loop_start()
+            time.sleep(1)
+            return True
+        except Exception as exc:
+            self.client = None
+            print(
+                f"[MQTTBridge] Cannot connect to "
+                f"{self.broker_host}:{self.broker_port}: {exc}"
+            )
+            return False
 
     def _on_connect(self, client, _userdata, _flags, rc):
         if rc != 0:
@@ -86,6 +94,7 @@ class GrinderMQTTBridge:
                 if self.on_response:
                     self.on_response(payload)
         except Exception as exc:
+            print(f"[MQTTBridge] Invalid message on {msg.topic}: {exc}")
             self.publish_response({"status": 500, "message": str(exc)})
 
     def publish_state(self, state_payload: Dict[str, Any]) -> None:

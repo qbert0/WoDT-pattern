@@ -63,12 +63,24 @@ class DittoTwinBridge:
 
     def _on_message(self, client, _userdata, msg):
         subject = msg.topic.split("/")[-1]
-        reply_topic = msg.topic
+        reply_topic = f"{msg.topic}/response"
+        request_payload: Any = {}
 
         try:
-            payload = json.loads(msg.payload.decode())
-            commands = payload.get("value", {})
-            headers = payload.get("headers", {})
+            request_payload = json.loads(msg.payload.decode())
+            if not isinstance(request_payload, dict):
+                raise ValueError("Ditto Protocol payload must be a JSON object")
+
+            commands = request_payload.get("value", {})
+            headers = request_payload.get("headers", {})
+            if not isinstance(headers, dict):
+                raise ValueError("Ditto Protocol headers must be a JSON object")
+
+            request_topic = request_payload.get("topic")
+            if not isinstance(request_topic, str) or not request_topic:
+                raise ValueError("Ditto Protocol payload is missing topic")
+
+            response_path = self._response_path(request_payload.get("path"))
 
             result_value: Dict[str, Any] = {"command": subject, "accepted": True}
             if self.on_ditto_command:
@@ -81,24 +93,55 @@ class DittoTwinBridge:
                 response_headers["correlation-id"] = headers["correlation-id"]
 
             response_payload = {
-                "topic": f"{self.ditto_topic_prefix}/live/messages/{subject}",
+                "topic": request_topic,
                 "headers": response_headers,
-                "path": f"/outbox/messages/{subject}",
+                "path": response_path,
                 "status": 200,
                 "value": result_value,
             }
             client.publish(reply_topic, json.dumps(response_payload), qos=0)
 
         except Exception as exc:
+            request_headers = (
+                request_payload.get("headers", {})
+                if isinstance(request_payload, dict)
+                else {}
+            )
+            response_headers = {"content-type": "application/json"}
+            if isinstance(request_headers, dict) and "correlation-id" in request_headers:
+                response_headers["correlation-id"] = request_headers["correlation-id"]
+
+            request_topic = (
+                request_payload.get("topic")
+                if isinstance(request_payload, dict)
+                else None
+            )
+            if not isinstance(request_topic, str) or not request_topic:
+                request_topic = f"{self.ditto_topic_prefix}/live/messages/{subject}"
+
+            try:
+                response_path = self._response_path(
+                    request_payload.get("path")
+                    if isinstance(request_payload, dict)
+                    else None
+                )
+            except ValueError:
+                response_path = f"/outbox/messages/{subject}"
+
             response_payload = {
-                "topic": f"{self.ditto_topic_prefix}/live/messages/{subject}",
-                "headers": {"content-type": "application/json"},
-                # ✅ Bug 2 fix: outbox ở đây cũng vậy
-                "path": f"/outbox/messages/{subject}",
+                "topic": request_topic,
+                "headers": response_headers,
+                "path": response_path,
                 "status": 500,
                 "value": {"error": str(exc)},
             }
             client.publish(reply_topic, json.dumps(response_payload), qos=0)
+
+    @staticmethod
+    def _response_path(request_path: Any) -> str:
+        if not isinstance(request_path, str) or "/inbox/messages/" not in request_path:
+            raise ValueError("Ditto message path must contain /inbox/messages/")
+        return request_path.replace("/inbox/messages/", "/outbox/messages/", 1)
 
     def publish_features(self, features_payload: Dict[str, Any]) -> None:
         if not self.client:

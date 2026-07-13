@@ -103,7 +103,10 @@ const Module2DTStatus = () => {
     setMsgStatus(null);
     try {
       const parsed = JSON.parse(messagePayload);
-      const url = `${BASE_URL}/things/${encodeURIComponent(thingId)}/inbox/messages/${encodeURIComponent(messageSubject)}`;
+      const url =
+  `${BASE_URL}/things/${encodeURIComponent(thingId)}` +
+  `/inbox/messages/${encodeURIComponent(messageSubject)}` +
+  `?channel=live&timeout=10`;
       const res = await fetch(url, {
         method: 'POST',
         headers: headers(),

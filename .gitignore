@@ -36,3 +36,5 @@ client-aplication/node_modules/
 neo4j/data/
 neo4j/logs/
 neo4j/run/
+smart_kettle_simulator/.env
+smart_grinder_simulator/.env
