@@ -12,7 +12,7 @@ try {
   console.error('Lỗi khởi tạo driver:', err);
 }
 
-const KGGraph = ({ thingId, goalAgentId, width, height }) => {
+const KGGraph = ({ thingId, goalAgentId, componentGoalAgentIds = [], isLarge, width, height }) => {
   const [data, setData] = useState({ nodes: [], links: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -137,6 +137,9 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
             type: nodeData.dependsOnType,
             description: nodeData.dependsOnDescription
           };
+          if (thingId) {
+            relProps.contextId = thingId;
+          }
           if (nodeData.dependsOnType === 'PARAMETER') {
             relProps.sourceParameter = nodeData.sourceParameter;
             relProps.targetParameter = nodeData.targetParameter;
@@ -217,6 +220,9 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
           type: linkData.dependsOnType,
           description: linkData.dependsOnDescription
         };
+        if (thingId) {
+          relProps.contextId = thingId;
+        }
         if (linkData.dependsOnType === 'PARAMETER') {
           relProps.sourceParameter = linkData.sourceParameter;
           relProps.targetParameter = linkData.targetParameter;
@@ -447,6 +453,9 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
           type: editLinkDependsOnType,
           description: editLinkDescription
         };
+        if (thingId) {
+          relProps.contextId = thingId;
+        }
         if (editLinkDependsOnType === 'PARAMETER') {
           relProps.sourceParameter = editLinkSourceParam;
           relProps.targetParameter = editLinkTargetParam;
@@ -507,17 +516,27 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
       try {
 
         const query = goalAgentId
-          ? `
-            MATCH path = (agent:Agent {id: $goalAgentId})-[*0..5]-(m)
-            RETURN path
-          `
+          ? (isLarge
+              ? `
+                UNWIND $agentIds AS agentId
+                MATCH path = (agent:Agent {id: agentId})-[*0..5]-(m)
+                WHERE ALL(rel IN relationships(path) WHERE type(rel) <> 'DEPENDS_ON' OR rel.contextId = $thingId)
+                RETURN path
+              `
+              : `
+                MATCH path = (agent:Agent {id: $goalAgentId})-[*0..5]-(m)
+                WHERE NONE(rel IN relationships(path) WHERE type(rel) = 'DEPENDS_ON')
+                RETURN path
+              `
+            )
           : `
             MATCH (n)-[r]->(m)
             RETURN n, r, m
             LIMIT ${NEO4J_QUERY_LIMIT}
           `;
 
-        const result = await session.run(query, { goalAgentId });
+        const agentIds = [goalAgentId, ...componentGoalAgentIds];
+        const result = await session.run(query, { goalAgentId, agentIds, thingId });
 
         const nodesMap = new Map();
         const links = [];
@@ -618,7 +637,7 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
     return () => {
       isMounted = false;
     };
-  }, [thingId, goalAgentId, localRefreshKey]);
+  }, [thingId, goalAgentId, componentGoalAgentIds, isLarge, localRefreshKey]);
 
   const getNodeColor = (node) => {
     switch (node.type) {
