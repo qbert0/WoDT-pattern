@@ -8,7 +8,7 @@ class DittoPayloadBuilder:
         return {
             "thingId": thing_id,
             "attributes": {
-                "goalRootId": goal_root_id,
+                "goalAgentId": goal_root_id,
             },
         }
 
