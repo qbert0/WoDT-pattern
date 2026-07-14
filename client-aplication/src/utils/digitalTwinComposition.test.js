@@ -7,11 +7,11 @@ import {
 describe('normalizeThingCatalog', () => {
   it('normalizes, sorts and deduplicates valid Things', () => {
     const result = normalizeThingCatalog([
-      { thingId: 'smart-home:kettle', attributes: { goalRootId: ' G_KETTLE ' } },
-      { thingId: 'smart-home:grinder', attributes: { goalRootId: 'G_GRINDER' } },
-      { thingId: 'smart-home:kettle', attributes: { goalRootId: 'IGNORED' } },
-      { thingId: 'smart-home:new', attributes: { goalRootId: 'G_NEW' } },
-      { attributes: { goalRootId: 'G_MISSING_ID' } },
+      { thingId: 'smart-home:kettle', attributes: { goalAgentId: ' G_KETTLE ' } },
+      { thingId: 'smart-home:grinder', attributes: { goalAgentId: 'G_GRINDER' } },
+      { thingId: 'smart-home:kettle', attributes: { goalAgentId: 'IGNORED' } },
+      { thingId: 'smart-home:new', attributes: { goalAgentId: 'G_NEW' } },
+      { attributes: { goalAgentId: 'G_MISSING_ID' } },
       null,
     ], 'smart-home:new');
 
@@ -33,12 +33,12 @@ describe('normalizeThingCatalog', () => {
 });
 
 describe('mergeCompositionIntoPayload', () => {
-  it('adds goal root and multiple unique component IDs', () => {
+  it('adds goal agent and multiple unique component IDs', () => {
     expect(mergeCompositionIntoPayload({}, {
-      goalRootId: ' G_PARENT ',
+      goalAgentId: ' G_PARENT ',
       thingIds: ['smart-home:grinder', 'smart-home:kettle', 'smart-home:grinder'],
     })).toEqual({
-      attributes: { goalRootId: 'G_PARENT' },
+      attributes: { goalAgentId: 'G_PARENT' },
       features: {
         components: {
           properties: {
@@ -52,7 +52,7 @@ describe('mergeCompositionIntoPayload', () => {
   it('overwrites form-owned fields and preserves unrelated nested data', () => {
     const result = mergeCompositionIntoPayload({
       definition: 'example:definition:1.0.0',
-      attributes: { goalRootId: 'OLD', location: 'Lab' },
+      attributes: { goalRootId: 'OLD', goalAgentId: 'OLD_AGENT', location: 'Lab' },
       features: {
         status: { properties: { online: true } },
         components: {
@@ -60,11 +60,11 @@ describe('mergeCompositionIntoPayload', () => {
           properties: { thingIds: ['old:id'], mode: 'serial' },
         },
       },
-    }, { goalRootId: 'G_NEW', thingIds: ['new:id'] });
+    }, { goalAgentId: 'G_NEW', thingIds: ['new:id'] });
 
     expect(result).toEqual({
       definition: 'example:definition:1.0.0',
-      attributes: { goalRootId: 'G_NEW', location: 'Lab' },
+      attributes: { goalAgentId: 'G_NEW', location: 'Lab' },
       features: {
         status: { properties: { online: true } },
         components: {
@@ -78,8 +78,8 @@ describe('mergeCompositionIntoPayload', () => {
   it('removes thingIds and prunes empty composition objects when none are selected', () => {
     expect(mergeCompositionIntoPayload({
       features: { components: { properties: { thingIds: ['old:id'] } } },
-    }, { goalRootId: 'G_PARENT', thingIds: [] })).toEqual({
-      attributes: { goalRootId: 'G_PARENT' },
+    }, { goalAgentId: 'G_PARENT', thingIds: [] })).toEqual({
+      attributes: { goalAgentId: 'G_PARENT' },
       features: {},
     });
   });
@@ -87,22 +87,22 @@ describe('mergeCompositionIntoPayload', () => {
   it('keeps unrelated component properties when removing thingIds', () => {
     expect(mergeCompositionIntoPayload({
       features: { components: { properties: { thingIds: ['old:id'], mode: 'parallel' } } },
-    }, { goalRootId: 'G_PARENT' })).toEqual({
-      attributes: { goalRootId: 'G_PARENT' },
+    }, { goalAgentId: 'G_PARENT' })).toEqual({
+      attributes: { goalAgentId: 'G_PARENT' },
       features: { components: { properties: { mode: 'parallel' } } },
     });
   });
 
   it('handles missing, null and non-object payload branches', () => {
-    expect(mergeCompositionIntoPayload(null, { goalRootId: 'G_ROOT' })).toEqual({
-      attributes: { goalRootId: 'G_ROOT' },
+    expect(mergeCompositionIntoPayload(null, { goalAgentId: 'G_ROOT' })).toEqual({
+      attributes: { goalAgentId: 'G_ROOT' },
       features: {},
     });
     expect(mergeCompositionIntoPayload({ attributes: [], features: 'invalid' }, {
-      goalRootId: 'G_ROOT',
+      goalAgentId: 'G_ROOT',
       thingIds: ['child:id'],
     })).toEqual({
-      attributes: { goalRootId: 'G_ROOT' },
+      attributes: { goalAgentId: 'G_ROOT' },
       features: { components: { properties: { thingIds: ['child:id'] } } },
     });
   });

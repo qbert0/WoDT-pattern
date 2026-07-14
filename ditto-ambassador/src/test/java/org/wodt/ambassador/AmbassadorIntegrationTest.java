@@ -93,11 +93,11 @@ class AmbassadorIntegrationTest {
     }
 
     @Test
-    void reportsGoalRootAvailabilityFromDittoSearch() {
+    void reportsGoalAgentAvailabilityFromDittoSearch() {
         HANDLER.set(exchange -> {
             assertThat(exchange.getRequestURI().getPath()).isEqualTo("/api/2/search/things");
             assertThat(URLDecoder.decode(exchange.getRequestURI().getRawQuery(), StandardCharsets.UTF_8))
-                    .contains("filter=eq(attributes/goalRootId,\"G_USED\")")
+                    .contains("filter=eq(attributes/goalAgentId,\"G_USED\")")
                     .contains("option=size(1)");
             assertThat(exchange.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION)).isEqualTo(REGULAR_AUTH);
             exchange.getResponseHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
@@ -106,19 +106,19 @@ class AmbassadorIntegrationTest {
 
         client.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/digital-twins/goal-root-availability")
-                        .queryParam("goalRootId", " G_USED ")
+                        .path("/api/digital-twins/goal-agent-availability")
+                        .queryParam("goalAgentId", " G_USED ")
                         .build())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.goalRootId").isEqualTo("G_USED")
+                .jsonPath("$.goalAgentId").isEqualTo("G_USED")
                 .jsonPath("$.available").isEqualTo(false)
                 .jsonPath("$.conflictingThingId").isEqualTo("smart-home:grinder");
     }
 
     @Test
-    void rejectsCreateWhenGoalRootIdAlreadyExists() {
+    void rejectsCreateWhenGoalAgentIdAlreadyExists() {
         AtomicBoolean putAttempted = new AtomicBoolean();
         HANDLER.set(exchange -> {
             if (exchange.getRequestURI().getPath().equals("/api/2/search/things")) {
@@ -133,11 +133,11 @@ class AmbassadorIntegrationTest {
         client.put()
                 .uri("/api/digital-twins/smart-home:parent")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue("{\"attributes\":{\"goalRootId\":\"G_USED\"}}")
+                .bodyValue("{\"attributes\":{\"goalAgentId\":\"G_USED\"}}")
                 .exchange()
                 .expectStatus().isEqualTo(409)
                 .expectBody()
-                .jsonPath("$.code").isEqualTo("GOAL_ROOT_ALREADY_EXISTS")
+                .jsonPath("$.code").isEqualTo("GOAL_AGENT_ALREADY_EXISTS")
                 .jsonPath("$.message").value(message -> assertThat(message.toString())
                         .contains("smart-home:grinder"));
 
@@ -145,7 +145,7 @@ class AmbassadorIntegrationTest {
     }
 
     @Test
-    void createsThingWhenGoalRootIdIsAvailable() {
+    void createsThingWhenGoalAgentIdIsAvailable() {
         AtomicInteger requestCount = new AtomicInteger();
         HANDLER.set(exchange -> {
             requestCount.incrementAndGet();
@@ -163,7 +163,7 @@ class AmbassadorIntegrationTest {
         client.put()
                 .uri("/api/digital-twins/smart-home:parent")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue("{\"attributes\":{\"goalRootId\":\"G_AVAILABLE\"}}")
+                .bodyValue("{\"attributes\":{\"goalAgentId\":\"G_AVAILABLE\"}}")
                 .exchange()
                 .expectStatus().isCreated();
 
@@ -171,13 +171,13 @@ class AmbassadorIntegrationTest {
     }
 
     @Test
-    void refusesCreateWhenGoalRootUniquenessCannotBeVerified() {
+    void refusesCreateWhenGoalAgentUniquenessCannotBeVerified() {
         HANDLER.set(exchange -> respond(exchange, 503, "{\"status\":503}"));
 
         client.put()
                 .uri("/api/digital-twins/smart-home:parent")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue("{\"attributes\":{\"goalRootId\":\"G_UNVERIFIED\"}}")
+                .bodyValue("{\"attributes\":{\"goalAgentId\":\"G_UNVERIFIED\"}}")
                 .exchange()
                 .expectStatus().isEqualTo(502)
                 .expectBody()

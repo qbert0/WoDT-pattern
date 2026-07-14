@@ -31,7 +31,7 @@ export const normalizeThingCatalog = (things, currentThingId = '') => {
   return { thingIds: [...thingIds].sort((left, right) => left.localeCompare(right)) };
 };
 
-export const mergeCompositionIntoPayload = (basePayload, { goalRootId, thingIds } = {}) => {
+export const mergeCompositionIntoPayload = (basePayload, { goalAgentId, thingIds } = {}) => {
   const payload = isPlainObject(basePayload) ? { ...basePayload } : {};
   const attributes = isPlainObject(payload.attributes) ? { ...payload.attributes } : {};
   const features = isPlainObject(payload.features) ? { ...payload.features } : {};
@@ -39,7 +39,8 @@ export const mergeCompositionIntoPayload = (basePayload, { goalRootId, thingIds 
   const properties = isPlainObject(components.properties) ? { ...components.properties } : {};
   const normalizedThingIds = normalizeStringList(thingIds);
 
-  attributes.goalRootId = typeof goalRootId === 'string' ? goalRootId.trim() : '';
+  delete attributes.goalRootId;
+  attributes.goalAgentId = typeof goalAgentId === 'string' ? goalAgentId.trim() : '';
 
   if (normalizedThingIds.length > 0) {
     properties.thingIds = normalizedThingIds;

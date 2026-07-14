@@ -11,19 +11,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 @Service
-public class GoalRootUniquenessService {
+public class GoalAgentUniquenessService {
 
     private final WebClient webClient;
     private final DittoProperties properties;
 
-    public GoalRootUniquenessService(WebClient dittoWebClient, DittoProperties properties) {
+    public GoalAgentUniquenessService(WebClient dittoWebClient, DittoProperties properties) {
         this.webClient = dittoWebClient;
         this.properties = properties;
     }
 
-    public Mono<Optional<String>> findOwningThingId(String goalRootId) {
-        String normalizedGoalRootId = goalRootId.trim();
-        String filter = "eq(attributes/goalRootId,\"" + escapeRqlString(normalizedGoalRootId) + "\")";
+    public Mono<Optional<String>> findOwningThingId(String goalAgentId) {
+        String normalizedGoalAgentId = goalAgentId.trim();
+        String filter = "eq(attributes/goalAgentId,\"" + escapeRqlString(normalizedGoalAgentId) + "\")";
 
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder

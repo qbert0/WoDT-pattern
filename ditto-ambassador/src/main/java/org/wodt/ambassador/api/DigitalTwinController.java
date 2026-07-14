@@ -40,34 +40,34 @@ public class DigitalTwinController {
     private final WebClient webClient;
     private final DittoProperties properties;
     private final ObjectMapper objectMapper;
-    private final GoalRootUniquenessService goalRootUniquenessService;
+    private final GoalAgentUniquenessService goalAgentUniquenessService;
 
     public DigitalTwinController(WebClient dittoWebClient,
                                  DittoProperties properties,
                                  ObjectMapper objectMapper,
-                                 GoalRootUniquenessService goalRootUniquenessService) {
+                                 GoalAgentUniquenessService goalAgentUniquenessService) {
         this.webClient = dittoWebClient;
         this.properties = properties;
         this.objectMapper = objectMapper;
-        this.goalRootUniquenessService = goalRootUniquenessService;
+        this.goalAgentUniquenessService = goalAgentUniquenessService;
     }
 
-    @GetMapping(path = "/goal-root-availability", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<ResponseEntity<GoalRootAvailability>> getGoalRootAvailability(
-            @RequestParam String goalRootId) {
-        String normalizedGoalRootId = goalRootId.trim();
-        if (normalizedGoalRootId.isEmpty()) {
+    @GetMapping(path = "/goal-agent-availability", produces = MediaType.APPLICATION_JSON_VALUE)
+    public Mono<ResponseEntity<GoalAgentAvailability>> getGoalAgentAvailability(
+            @RequestParam String goalAgentId) {
+        String normalizedGoalAgentId = goalAgentId.trim();
+        if (normalizedGoalAgentId.isEmpty()) {
             return Mono.just(ResponseEntity.badRequest().build());
         }
 
-        return goalRootUniquenessService.findOwningThingId(normalizedGoalRootId)
-                .map(owner -> ResponseEntity.ok(new GoalRootAvailability(
-                        normalizedGoalRootId,
+        return goalAgentUniquenessService.findOwningThingId(normalizedGoalAgentId)
+                .map(owner -> ResponseEntity.ok(new GoalAgentAvailability(
+                        normalizedGoalAgentId,
                         owner.isEmpty(),
                         owner.orElse(null)
                 )))
                 .onErrorResume(error -> {
-                    LOGGER.warn("Could not verify Goal Root ID {}", normalizedGoalRootId, error);
+                    LOGGER.warn("Could not verify Goal Agent ID {}", normalizedGoalAgentId, error);
                     return Mono.just(ResponseEntity.status(upstreamFailureStatus(error)).build());
                 });
     }
@@ -77,16 +77,16 @@ public class DigitalTwinController {
                                                            @RequestBody byte[] payload) {
         long startedAt = System.nanoTime();
 
-        String goalRootId = extractGoalRootId(payload);
-        Mono<ResponseEntity<byte[]>> operation = goalRootId == null
+        String goalAgentId = extractGoalAgentId(payload);
+        Mono<ResponseEntity<byte[]>> operation = goalAgentId == null
                 ? createAtDitto(thingId, payload)
-                : goalRootUniquenessService.findOwningThingId(goalRootId)
+                : goalAgentUniquenessService.findOwningThingId(goalAgentId)
                         .flatMap(owner -> {
                             if (owner.isPresent()) {
                                 String conflictingThingId = owner.get();
                                 return Mono.just(jsonError(HttpStatus.CONFLICT, new ApiError(
-                                        "GOAL_ROOT_ALREADY_EXISTS",
-                                        "Goal Root ID '" + goalRootId + "' is already used by Digital Twin '"
+                                        "GOAL_AGENT_ALREADY_EXISTS",
+                                        "Goal Agent ID '" + goalAgentId + "' is already used by Digital Twin '"
                                                 + conflictingThingId + "'.",
                                         thingId
                                 )));
@@ -122,16 +122,16 @@ public class DigitalTwinController {
                                 response.headers().asHttpHeaders(), body)));
     }
 
-    private String extractGoalRootId(byte[] payload) {
+    private String extractGoalAgentId(byte[] payload) {
         try {
             JsonNode root = objectMapper.readTree(payload);
-            JsonNode goalRootNode = root.path("attributes").path("goalRootId");
-            if (!goalRootNode.isTextual()) {
+            JsonNode goalAgentNode = root.path("attributes").path("goalAgentId");
+            if (!goalAgentNode.isTextual()) {
                 return null;
             }
 
-            String goalRootId = goalRootNode.asText().trim();
-            return goalRootId.isEmpty() ? null : goalRootId;
+            String goalAgentId = goalAgentNode.asText().trim();
+            return goalAgentId.isEmpty() ? null : goalAgentId;
         } catch (RuntimeException error) {
             return null;
         }
