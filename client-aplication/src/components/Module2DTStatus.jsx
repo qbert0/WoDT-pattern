@@ -223,7 +223,7 @@ const Module2DTStatus = () => {
             <button className="btn" style={{ padding: '2px 8px', fontSize: '0.7rem', background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }} onClick={() => setShowFullGraphModal(true)}>Đầy đủ →</button>
           </div>
           <div ref={graphContainerRef} className="graph-container">
-            <KGGraph key={graphRefreshKey} thingId={thingId} goalRootId={thing?.attributes?.goalRootId} width={graphSize.width} height={graphSize.height} />
+            <KGGraph key={graphRefreshKey} thingId={thingId} goalAgentId={thing?.attributes?.goalAgentId} width={graphSize.width} height={graphSize.height} />
           </div>
         </div>
 
@@ -408,7 +408,7 @@ const Module2DTStatus = () => {
               <button className="close-btn" onClick={() => setShowFullGraphModal(false)} style={{ fontSize: '1.5rem', background: 'transparent' }}>&times;</button>
             </div>
             <div style={{ height: '70vh', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', overflow: 'hidden' }}>
-              <KGGraph key={graphRefreshKey} thingId={thingId} goalRootId={thing?.attributes?.goalRootId} width={1000} height={window.innerHeight * 0.7} />
+              <KGGraph key={graphRefreshKey} thingId={thingId} goalAgentId={thing?.attributes?.goalAgentId} width={1000} height={window.innerHeight * 0.7} />
             </div>
           </div>
         </div>

@@ -12,7 +12,7 @@ try {
   console.error('Lỗi khởi tạo driver:', err);
 }
 
-const KGGraph = ({ thingId, goalRootId, width, height }) => {
+const KGGraph = ({ thingId, goalAgentId, width, height }) => {
   const [data, setData] = useState({ nodes: [], links: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -415,7 +415,7 @@ const KGGraph = ({ thingId, goalRootId, width, height }) => {
         return;
       }
 
-      if (!goalRootId) {
+      if (!goalAgentId) {
         if (isMounted) {
           setData({ nodes: [], links: [] });
           setLoading(false);
@@ -429,9 +429,9 @@ const KGGraph = ({ thingId, goalRootId, width, height }) => {
 
       try {
 
-        const query = goalRootId
+        const query = goalAgentId
           ? `
-            MATCH path = (root:Goal {id: $goalRootId})-[*0..5]-(m)
+            MATCH path = (agent:Agent {id: $goalAgentId})-[*0..5]-(m)
             RETURN path
           `
           : `
@@ -440,14 +440,14 @@ const KGGraph = ({ thingId, goalRootId, width, height }) => {
             LIMIT ${NEO4J_QUERY_LIMIT}
           `;
 
-        const result = await session.run(query, { goalRootId });
+        const result = await session.run(query, { goalAgentId });
 
         const nodesMap = new Map();
         const links = [];
         const seenLinks = new Set();
 
         result.records.forEach(record => {
-          if (goalRootId) {
+          if (goalAgentId) {
             const path = record.get('path');
             if (path) {
               const startNode = path.start;
@@ -541,7 +541,7 @@ const KGGraph = ({ thingId, goalRootId, width, height }) => {
     return () => {
       isMounted = false;
     };
-  }, [thingId, goalRootId, localRefreshKey]);
+  }, [thingId, goalAgentId, localRefreshKey]);
 
   const getNodeColor = (node) => {
     switch (node.type) {
