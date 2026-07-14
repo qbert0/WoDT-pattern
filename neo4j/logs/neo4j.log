@@ -2854,3 +2854,24 @@
 2026-07-14 02:02:30.747+0000 INFO  Logging config in use: File '/var/lib/neo4j/conf/user-logs.xml'
 2026-07-14 02:02:30.755+0000 INFO  Neo4j Server shutdown initiated by request
 2026-07-14 02:02:30.756+0000 INFO  Stopped.
+2026-07-14 02:03:34.298+0000 INFO  Logging config in use: File '/var/lib/neo4j/conf/user-logs.xml'
+2026-07-14 02:03:34.309+0000 INFO  Neo4j Server shutdown initiated by request
+2026-07-14 02:03:34.310+0000 INFO  Stopped.
+2026-07-14 02:04:38.383+0000 INFO  Logging config in use: File '/var/lib/neo4j/conf/user-logs.xml'
+2026-07-14 02:04:38.397+0000 INFO  Neo4j Server shutdown initiated by request
+2026-07-14 02:04:38.399+0000 INFO  Stopped.
+2026-07-14 02:05:41.988+0000 INFO  Logging config in use: File '/var/lib/neo4j/conf/user-logs.xml'
+2026-07-14 02:05:41.999+0000 INFO  Neo4j Server shutdown initiated by request
+2026-07-14 02:05:42.000+0000 INFO  Stopped.
+2026-07-14 02:06:45.972+0000 INFO  Logging config in use: File '/var/lib/neo4j/conf/user-logs.xml'
+2026-07-14 02:06:45.980+0000 INFO  Neo4j Server shutdown initiated by request
+2026-07-14 02:06:45.981+0000 INFO  Stopped.
+2026-07-14 02:07:49.670+0000 INFO  Logging config in use: File '/var/lib/neo4j/conf/user-logs.xml'
+2026-07-14 02:07:49.678+0000 INFO  Neo4j Server shutdown initiated by request
+2026-07-14 02:07:49.679+0000 INFO  Stopped.
+2026-07-14 02:08:58.001+0000 INFO  Logging config in use: File '/var/lib/neo4j/conf/user-logs.xml'
+2026-07-14 02:08:58.033+0000 INFO  Neo4j Server shutdown initiated by request
+2026-07-14 02:08:58.036+0000 INFO  Stopped.
+2026-07-14 02:10:06.420+0000 INFO  Logging config in use: File '/var/lib/neo4j/conf/user-logs.xml'
+2026-07-14 02:10:06.446+0000 INFO  Neo4j Server shutdown initiated by request
+2026-07-14 02:10:06.448+0000 INFO  Stopped.

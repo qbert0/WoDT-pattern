@@ -281,7 +281,13 @@ const Module2DTStatus = () => {
 
 
         <div className="glass-panel panel-f" style={{ gridColumn: 'span 6', height: '400px' }}>
-          <ObjectController thingId={thingId} goalRootId={thing?.attributes?.goalRootId} onAction={handleControllerAction} onOpenSetup={() => setShowSetupModal(true)} />
+          <ObjectController 
+            thingId={thingId} 
+            goalRootId={thing?.attributes?.goalRootId} 
+            goalAgentId={thing?.attributes?.goalAgentId} 
+            onAction={handleControllerAction} 
+            onOpenSetup={() => setShowSetupModal(true)} 
+          />
         </div>
 
 
