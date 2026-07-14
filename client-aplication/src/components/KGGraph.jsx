@@ -34,14 +34,26 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
     targetNodeId: '',
     relType: 'REFINES',
     refinesType: 'AND',
-    direction: 'new-to-target'
+    direction: 'new-to-target',
+    dependsOnType: 'ACHIEVED',
+    dependsOnDescription: '',
+    sourceParameter: '',
+    targetParameter: '',
+    factor: 1.0,
+    offset: 0.0
   });
 
   const [linkData, setLinkData] = useState({
     sourceNodeId: '',
     targetNodeId: '',
     relType: 'REFINES',
-    refinesType: 'AND'
+    refinesType: 'AND',
+    dependsOnType: 'ACHIEVED',
+    dependsOnDescription: '',
+    sourceParameter: '',
+    targetParameter: '',
+    factor: 1.0,
+    offset: 0.0
   });
 
   const [selectedElement, setSelectedElement] = useState(null);
@@ -53,6 +65,12 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
   });
   const [editLinkType, setEditLinkType] = useState('REFINES');
   const [editLinkRefinesType, setEditLinkRefinesType] = useState('AND');
+  const [editLinkDependsOnType, setEditLinkDependsOnType] = useState('ACHIEVED');
+  const [editLinkDescription, setEditLinkDescription] = useState('');
+  const [editLinkSourceParam, setEditLinkSourceParam] = useState('');
+  const [editLinkTargetParam, setEditLinkTargetParam] = useState('');
+  const [editLinkFactor, setEditLinkFactor] = useState(1.0);
+  const [editLinkOffset, setEditLinkOffset] = useState(0.0);
 
   useEffect(() => {
     if (selectedElement) {
@@ -68,6 +86,12 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
         setEditLinkType(selectedElement.data.label || 'REFINES');
         const props = selectedElement.data.properties || {};
         setEditLinkRefinesType(props.type || 'AND');
+        setEditLinkDependsOnType(props.type || 'ACHIEVED');
+        setEditLinkDescription(props.description || '');
+        setEditLinkSourceParam(props.sourceParameter || '');
+        setEditLinkTargetParam(props.targetParameter || '');
+        setEditLinkFactor(props.factor !== undefined ? props.factor : 1.0);
+        setEditLinkOffset(props.offset !== undefined ? props.offset : 0.0);
       }
     }
   }, [selectedElement]);
@@ -105,7 +129,21 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
 
       if (data.nodes.length > 0 && nodeData.targetNodeId) {
         let createRelQuery;
-        const relProps = nodeData.relType === 'REFINES' ? { type: nodeData.refinesType } : {};
+        let relProps = {};
+        if (nodeData.relType === 'REFINES') {
+          relProps = { type: nodeData.refinesType };
+        } else if (nodeData.relType === 'DEPENDS_ON') {
+          relProps = {
+            type: nodeData.dependsOnType,
+            description: nodeData.dependsOnDescription
+          };
+          if (nodeData.dependsOnType === 'PARAMETER') {
+            relProps.sourceParameter = nodeData.sourceParameter;
+            relProps.targetParameter = nodeData.targetParameter;
+            relProps.factor = parseFloat(nodeData.factor) || 0.0;
+            relProps.offset = parseFloat(nodeData.offset) || 0.0;
+          }
+        }
         if (nodeData.direction === 'new-to-target') {
           createRelQuery = `
             MATCH (a), (b)
@@ -139,7 +177,13 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
         targetNodeId: '',
         relType: 'REFINES',
         refinesType: 'AND',
-        direction: 'new-to-target'
+        direction: 'new-to-target',
+        dependsOnType: 'ACHIEVED',
+        dependsOnDescription: '',
+        sourceParameter: '',
+        targetParameter: '',
+        factor: 1.0,
+        offset: 0.0
       });
       setLocalRefreshKey(prev => prev + 1);
     } catch (err) {
@@ -165,7 +209,21 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
     setFormStatus({ type: '', message: '' });
     const session = driver.session();
     try {
-      const relProps = linkData.relType === 'REFINES' ? { type: linkData.refinesType } : {};
+      let relProps = {};
+      if (linkData.relType === 'REFINES') {
+        relProps = { type: linkData.refinesType };
+      } else if (linkData.relType === 'DEPENDS_ON') {
+        relProps = {
+          type: linkData.dependsOnType,
+          description: linkData.dependsOnDescription
+        };
+        if (linkData.dependsOnType === 'PARAMETER') {
+          relProps.sourceParameter = linkData.sourceParameter;
+          relProps.targetParameter = linkData.targetParameter;
+          relProps.factor = parseFloat(linkData.factor) || 0.0;
+          relProps.offset = parseFloat(linkData.offset) || 0.0;
+        }
+      }
       const query = `
         MATCH (a), (b)
         WHERE id(a) = toInteger($sourceId) AND id(b) = toInteger($targetId)
@@ -182,7 +240,13 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
         sourceNodeId: '',
         targetNodeId: '',
         relType: 'REFINES',
-        refinesType: 'AND'
+        refinesType: 'AND',
+        dependsOnType: 'ACHIEVED',
+        dependsOnDescription: '',
+        sourceParameter: '',
+        targetParameter: '',
+        factor: 1.0,
+        offset: 0.0
       });
       setLocalRefreshKey(prev => prev + 1);
     } catch (err) {
@@ -375,13 +439,26 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
     const session = driver.session();
     try {
       const { sourceId, targetId, label } = selectedElement.data;
-      const relProps = editLinkType === 'REFINES' ? { type: editLinkRefinesType } : {};
+      let relProps = {};
+      if (editLinkType === 'REFINES') {
+        relProps = { type: editLinkRefinesType };
+      } else if (editLinkType === 'DEPENDS_ON') {
+        relProps = {
+          type: editLinkDependsOnType,
+          description: editLinkDescription
+        };
+        if (editLinkDependsOnType === 'PARAMETER') {
+          relProps.sourceParameter = editLinkSourceParam;
+          relProps.targetParameter = editLinkTargetParam;
+          relProps.factor = parseFloat(editLinkFactor) || 0.0;
+          relProps.offset = parseFloat(editLinkOffset) || 0.0;
+        }
+      }
       const query = `
         MATCH (a)-[r:${label}]->(b)
         WHERE id(a) = toInteger($sourceId) AND id(b) = toInteger($targetId)
         CREATE (a)-[r2:${editLinkType.toUpperCase()}]->(b)
-        SET r2 = properties(r)
-        SET r2 += $relProps
+        SET r2 = $relProps
         DELETE r
       `;
       await session.run(query, { sourceId, targetId, relProps });
@@ -897,6 +974,7 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
                       <option value="REFINES">REFINES</option>
                       <option value="DELEGATED_TO">DELEGATED_TO</option>
                       <option value="OPERATIONALIZED_BY">OPERATIONALIZED_BY</option>
+                      <option value="DEPENDS_ON">DEPENDS_ON</option>
                     </select>
                   </div>
 
@@ -912,6 +990,75 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
                         <option value="OR">OR</option>
                       </select>
                     </div>
+                  )}
+
+                  {nodeData.relType === 'DEPENDS_ON' && (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại phụ thuộc (Type)</label>
+                        <select
+                          value={nodeData.dependsOnType}
+                          onChange={(e) => setNodeData({ ...nodeData, dependsOnType: e.target.value })}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                        >
+                          <option value="ACHIEVED">ACHIEVED</option>
+                          <option value="PARAMETER">PARAMETER</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Mô tả phụ thuộc</label>
+                        <textarea
+                          placeholder="Mô tả phụ thuộc..."
+                          value={nodeData.dependsOnDescription}
+                          onChange={(e) => setNodeData({ ...nodeData, dependsOnDescription: e.target.value })}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: '40px', resize: 'vertical' }}
+                        />
+                      </div>
+                      {nodeData.dependsOnType === 'PARAMETER' && (
+                        <>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Source Parameter</label>
+                            <input
+                              type="text"
+                              placeholder="Ví dụ: amount"
+                              value={nodeData.sourceParameter}
+                              onChange={(e) => setNodeData({ ...nodeData, sourceParameter: e.target.value })}
+                              style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Target Parameter</label>
+                            <input
+                              type="text"
+                              placeholder="Ví dụ: volume"
+                              value={nodeData.targetParameter}
+                              onChange={(e) => setNodeData({ ...nodeData, targetParameter: e.target.value })}
+                              style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Factor</label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={nodeData.factor}
+                              onChange={(e) => setNodeData({ ...nodeData, factor: e.target.value })}
+                              style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Offset</label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={nodeData.offset}
+                              onChange={(e) => setNodeData({ ...nodeData, offset: e.target.value })}
+                              style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </>
                   )}
 
                   <div>
@@ -982,6 +1129,7 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
                   <option value="REFINES">REFINES</option>
                   <option value="DELEGATED_TO">DELEGATED_TO</option>
                   <option value="OPERATIONALIZED_BY">OPERATIONALIZED_BY</option>
+                  <option value="DEPENDS_ON">DEPENDS_ON</option>
                 </select>
               </div>
 
@@ -997,6 +1145,75 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
                     <option value="OR">OR</option>
                   </select>
                 </div>
+              )}
+
+              {linkData.relType === 'DEPENDS_ON' && (
+                <>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại phụ thuộc (Type)</label>
+                    <select
+                      value={linkData.dependsOnType}
+                      onChange={(e) => setLinkData({ ...linkData, dependsOnType: e.target.value })}
+                      style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                    >
+                      <option value="ACHIEVED">ACHIEVED</option>
+                      <option value="PARAMETER">PARAMETER</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Mô tả phụ thuộc</label>
+                    <textarea
+                      placeholder="Mô tả phụ thuộc..."
+                      value={linkData.dependsOnDescription}
+                      onChange={(e) => setLinkData({ ...linkData, dependsOnDescription: e.target.value })}
+                      style={{ padding: '4px 8px', fontSize: '0.8rem', height: '40px', resize: 'vertical' }}
+                    />
+                  </div>
+                  {linkData.dependsOnType === 'PARAMETER' && (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Source Parameter</label>
+                        <input
+                          type="text"
+                          placeholder="Ví dụ: amount"
+                          value={linkData.sourceParameter}
+                          onChange={(e) => setLinkData({ ...linkData, sourceParameter: e.target.value })}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Target Parameter</label>
+                        <input
+                          type="text"
+                          placeholder="Ví dụ: volume"
+                          value={linkData.targetParameter}
+                          onChange={(e) => setLinkData({ ...linkData, targetParameter: e.target.value })}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Factor</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={linkData.factor}
+                          onChange={(e) => setLinkData({ ...linkData, factor: e.target.value })}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Offset</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={linkData.offset}
+                          onChange={(e) => setLinkData({ ...linkData, offset: e.target.value })}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
               )}
 
               <button
@@ -1196,6 +1413,7 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
                       <option value="REFINES">REFINES</option>
                       <option value="DELEGATED_TO">DELEGATED_TO</option>
                       <option value="OPERATIONALIZED_BY">OPERATIONALIZED_BY</option>
+                      <option value="DEPENDS_ON">DEPENDS_ON</option>
                     </select>
                   </div>
                   {editLinkType === 'REFINES' && (
@@ -1211,11 +1429,79 @@ const KGGraph = ({ thingId, goalAgentId, width, height }) => {
                       </select>
                     </div>
                   )}
+                  {editLinkType === 'DEPENDS_ON' && (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại phụ thuộc (Type)</label>
+                        <select
+                          value={editLinkDependsOnType}
+                          onChange={(e) => setEditLinkDependsOnType(e.target.value)}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                        >
+                          <option value="ACHIEVED">ACHIEVED</option>
+                          <option value="PARAMETER">PARAMETER</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Mô tả phụ thuộc</label>
+                        <textarea
+                          placeholder="Mô tả phụ thuộc..."
+                          value={editLinkDescription}
+                          onChange={(e) => setEditLinkDescription(e.target.value)}
+                          style={{ padding: '4px 8px', fontSize: '0.8rem', height: '40px', resize: 'vertical' }}
+                        />
+                      </div>
+                      {editLinkDependsOnType === 'PARAMETER' && (
+                        <>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Source Parameter</label>
+                            <input
+                              type="text"
+                              placeholder="Ví dụ: amount"
+                              value={editLinkSourceParam}
+                              onChange={(e) => setEditLinkSourceParam(e.target.value)}
+                              style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Target Parameter</label>
+                            <input
+                              type="text"
+                              placeholder="Ví dụ: volume"
+                              value={editLinkTargetParam}
+                              onChange={(e) => setEditLinkTargetParam(e.target.value)}
+                              style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Factor</label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={editLinkFactor}
+                              onChange={(e) => setEditLinkFactor(e.target.value)}
+                              style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Offset</label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={editLinkOffset}
+                              onChange={(e) => setEditLinkOffset(e.target.value)}
+                              style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
                   <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                     <button
                       type="submit"
                       className="btn btn-success"
-                      disabled={submitting || (editLinkType === selectedElement.data.label && editLinkRefinesType === (selectedElement.data.properties?.type || 'AND'))}
+                      disabled={submitting}
                       style={{ flex: 1, fontSize: '0.8rem', padding: '6px 12px' }}
                     >
                       Cập nhật
