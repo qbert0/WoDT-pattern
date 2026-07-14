@@ -60,11 +60,11 @@ const Module3CreateWizard = () => {
   // Step 2 Data
   const [defType, setDefType] = useState('json'); // 'url' | 'json'
   const [defUrl, setDefUrl] = useState('');
-  const [goalRootId, setGoalRootId] = useState('');
-  const [goalRootTouched, setGoalRootTouched] = useState(false);
-  const [goalRootAvailability, setGoalRootAvailability] = useState(null);
-  const [goalRootChecking, setGoalRootChecking] = useState(false);
-  const [goalRootCheckError, setGoalRootCheckError] = useState(null);
+  const [goalAgentId, setGoalAgentId] = useState('');
+  const [goalAgentTouched, setGoalAgentTouched] = useState(false);
+  const [goalAgentAvailability, setGoalAgentAvailability] = useState(null);
+  const [goalAgentChecking, setGoalAgentChecking] = useState(false);
+  const [goalAgentCheckError, setGoalAgentCheckError] = useState(null);
   const [thingCatalog, setThingCatalog] = useState({ thingIds: [] });
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogLoadAttempted, setCatalogLoadAttempted] = useState(false);
@@ -181,49 +181,49 @@ const Module3CreateWizard = () => {
     }
   }, [catalogLoadAttempted, catalogLoading, loadThingCatalog, step]);
 
-  const normalizedGoalRootId = goalRootId.trim();
-  const displayedGoalRootAvailability = goalRootAvailability?.goalRootId === normalizedGoalRootId
-    ? goalRootAvailability
+  const normalizedGoalAgentId = goalAgentId.trim();
+  const displayedGoalAgentAvailability = goalAgentAvailability?.goalAgentId === normalizedGoalAgentId
+    ? goalAgentAvailability
     : null;
   const availableComponentThingIds = thingCatalog.thingIds.filter(
     existingThingId => !selectedComponentThingIds.includes(existingThingId)
   );
 
-  const checkGoalRootAvailability = useCallback(async (rawGoalRootId = goalRootId) => {
-    const normalizedValue = rawGoalRootId.trim();
+  const checkGoalAgentAvailability = useCallback(async (rawGoalAgentId = goalAgentId) => {
+    const normalizedValue = rawGoalAgentId.trim();
     if (!normalizedValue) {
-      setGoalRootAvailability(null);
-      return { goalRootId: '', available: false, conflictingThingId: null, required: true };
+      setGoalAgentAvailability(null);
+      return { goalAgentId: '', available: false, conflictingThingId: null, required: true };
     }
 
-    setGoalRootChecking(true);
-    setGoalRootCheckError(null);
+    setGoalAgentChecking(true);
+    setGoalAgentCheckError(null);
     try {
-      const params = new URLSearchParams({ goalRootId: normalizedValue });
+      const params = new URLSearchParams({ goalAgentId: normalizedValue });
       const response = await fetch(
-        `${DIGITAL_TWIN_CREATE_BASE_URL}/goal-root-availability?${params}`,
+        `${DIGITAL_TWIN_CREATE_BASE_URL}/goal-agent-availability?${params}`,
         { headers: headers() }
       );
       if (!response.ok) throw new Error(`Ambassador trả về HTTP ${response.status}`);
 
       const data = await response.json();
       const result = {
-        goalRootId: normalizedValue,
+        goalAgentId: normalizedValue,
         available: data.available === true,
         conflictingThingId: typeof data.conflictingThingId === 'string'
           ? data.conflictingThingId
           : null,
       };
-      setGoalRootAvailability(result);
+      setGoalAgentAvailability(result);
       return result;
     } catch (availabilityError) {
-      setGoalRootAvailability(null);
-      setGoalRootCheckError(`Không thể kiểm tra Goal Root ID: ${availabilityError.message}`);
+      setGoalAgentAvailability(null);
+      setGoalAgentCheckError(`Không thể kiểm tra Goal Agent ID: ${availabilityError.message}`);
       return null;
     } finally {
-      setGoalRootChecking(false);
+      setGoalAgentChecking(false);
     }
-  }, [goalRootId]);
+  }, [goalAgentId]);
 
   const handleTestConnection = () => {
     // Mocking connection test for UI
@@ -239,20 +239,20 @@ const Module3CreateWizard = () => {
       return;
     }
     if (step === 2) {
-      setGoalRootTouched(true);
+      setGoalAgentTouched(true);
 
-      if (!normalizedGoalRootId) {
-        setError('Vui lòng nhập Goal Root ID.');
+      if (!normalizedGoalAgentId) {
+        setError('Vui lòng nhập Goal Agent ID.');
         return;
       }
-      const availability = displayedGoalRootAvailability
-        ?? await checkGoalRootAvailability(normalizedGoalRootId);
+      const availability = displayedGoalAgentAvailability
+        ?? await checkGoalAgentAvailability(normalizedGoalAgentId);
       if (!availability) {
-        setError('Không thể xác minh Goal Root ID qua ambassador. Vui lòng thử lại.');
+        setError('Không thể xác minh Goal Agent ID qua ambassador. Vui lòng thử lại.');
         return;
       }
       if (!availability.available) {
-        setError(`Goal Root ID đã được sử dụng bởi Digital Twin "${availability.conflictingThingId}".`);
+        setError(`Goal Agent ID đã được sử dụng bởi Digital Twin "${availability.conflictingThingId}".`);
         return;
       }
       if (defType === 'json') {
@@ -267,7 +267,7 @@ const Module3CreateWizard = () => {
         }
       }
 
-      setGoalRootId(normalizedGoalRootId);
+      setGoalAgentId(normalizedGoalAgentId);
     }
     setError(null);
     setStep(prev => Math.min(prev + 1, 4));
@@ -292,7 +292,7 @@ const Module3CreateWizard = () => {
        }
     }
     return mergeCompositionIntoPayload(basePayload, {
-      goalRootId,
+      goalAgentId,
       thingIds: selectedComponentThingIds,
     });
   };
@@ -441,46 +441,46 @@ const Module3CreateWizard = () => {
             <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
               <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Cấu trúc Digital Twin</h3>
               <div className="form-group">
-                <label>Goal Root ID <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <label>Goal Agent ID <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <input
                   type="text"
-                  value={goalRootId}
+                  value={goalAgentId}
                   onChange={event => {
-                    setGoalRootId(event.target.value);
-                    setGoalRootTouched(true);
-                    setGoalRootAvailability(null);
-                    setGoalRootCheckError(null);
+                    setGoalAgentId(event.target.value);
+                    setGoalAgentTouched(true);
+                    setGoalAgentAvailability(null);
+                    setGoalAgentCheckError(null);
                   }}
                   onBlur={() => {
-                    setGoalRootTouched(true);
-                    if (goalRootId.trim()) checkGoalRootAvailability();
+                    setGoalAgentTouched(true);
+                    if (goalAgentId.trim()) checkGoalAgentAvailability();
                   }}
                   placeholder="VD: G_GRINDER_ROOT"
-                  disabled={goalRootChecking}
+                  disabled={goalAgentChecking}
                 />
-                {goalRootTouched && !normalizedGoalRootId && (
+                {goalAgentTouched && !normalizedGoalAgentId && (
                   <small style={{ color: '#fca5a5', display: 'block', marginTop: '0.5rem' }}>
-                    Goal Root ID là bắt buộc.
+                    Goal Agent ID là bắt buộc.
                   </small>
                 )}
-                {displayedGoalRootAvailability && !displayedGoalRootAvailability.available && (
+                {displayedGoalAgentAvailability && !displayedGoalAgentAvailability.available && (
                   <small style={{ color: '#fca5a5', display: 'block', marginTop: '0.5rem' }}>
-                    ID này đã được sử dụng bởi {displayedGoalRootAvailability.conflictingThingId}.
+                    ID này đã được sử dụng bởi {displayedGoalAgentAvailability.conflictingThingId}.
                   </small>
                 )}
-                {displayedGoalRootAvailability?.available && (
+                {displayedGoalAgentAvailability?.available && (
                   <small style={{ color: 'var(--success)', display: 'block', marginTop: '0.5rem' }}>
-                    Goal Root ID có thể sử dụng.
+                    Goal Agent ID có thể sử dụng.
                   </small>
                 )}
-                {goalRootChecking && (
+                {goalAgentChecking && (
                   <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '0.5rem' }}>
                     Đang kiểm tra với ambassador…
                   </small>
                 )}
-                {goalRootCheckError && (
+                {goalAgentCheckError && (
                   <small style={{ color: '#fca5a5', display: 'block', marginTop: '0.5rem' }}>
-                    {goalRootCheckError}
+                    {goalAgentCheckError}
                   </small>
                 )}
               </div>
@@ -600,7 +600,7 @@ ${JSON.stringify(buildFinalPayload(), null, 2)}`}
             <button
               className="btn btn-primary"
               onClick={nextStep}
-              disabled={loading || (step === 2 && goalRootChecking)}
+              disabled={loading || (step === 2 && goalAgentChecking)}
             >
               Tiếp tục →
             </button>
