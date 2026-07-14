@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import neo4j from 'neo4j-driver';
 import {
   DITTO_API_BASE_URL as BASE_URL,
   DIGITAL_TWIN_CREATE_BASE_URL,
   DITTO_POLICY_SUBJECT,
   SEARCH_PAGE_SIZE,
+  NEO4J_URI,
+  NEO4J_USER,
+  NEO4J_PASSWORD,
 } from '../config';
 import {
   mergeCompositionIntoPayload,
@@ -346,8 +350,34 @@ const Module3CreateWizard = () => {
         throw new Error(`Tạo Thing thất bại: ${thingRes.statusText}`);
       }
 
-      // 3. (Optional) Create Connection - Skipped in this MVP as it requires admin access and complex payload.
-      
+      // 3. Create Agent node in Neo4j Knowledge Graph
+      if (goalAgentId) {
+        const neoDriver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
+        const neoSession = neoDriver.session();
+        try {
+          let agentName = goalAgentId;
+          if (agentName.startsWith('A_')) {
+            const base = agentName.substring(2);
+            agentName = base.charAt(0).toUpperCase() + base.slice(1).toLowerCase() + 'Agent';
+          } else if (!agentName.toLowerCase().endsWith('agent')) {
+            agentName = agentName + 'Agent';
+          }
+
+          await neoSession.run(
+            `MERGE (ag:Agent {id: $goalAgentId})
+             SET ag.name = $agentName`,
+            { goalAgentId, agentName }
+          );
+          console.log(`Successfully auto-created Neo4j Agent node with ID: ${goalAgentId}`);
+        } catch (neoErr) {
+          console.error('Failed to auto-create Neo4j Agent node:', neoErr);
+        } finally {
+          await neoSession.close();
+          await neoDriver.close();
+        }
+      }
+
+      // 4. Navigate to Digital Twin view
       navigate(`/dt/${encodeURIComponent(thingId)}`);
     } catch (err) {
       setError(err.message);

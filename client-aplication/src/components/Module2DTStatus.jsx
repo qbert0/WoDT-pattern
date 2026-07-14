@@ -44,6 +44,45 @@ const Module2DTStatus = () => {
   const [graphRefreshKey, setGraphRefreshKey] = useState(0);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showFullGraphModal, setShowFullGraphModal] = useState(false);
+  const [componentGoalAgentIds, setComponentGoalAgentIds] = useState([]);
+
+  useEffect(() => {
+    if (!thing) return;
+    const componentThingIds = thing?.features?.components?.properties?.thingIds || [];
+    if (componentThingIds.length === 0) {
+      setComponentGoalAgentIds(prev => prev.length === 0 ? prev : []);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchComponentAgents = async () => {
+      try {
+        const promises = componentThingIds.map(async (compId) => {
+          const res = await fetch(`${BASE_URL}/things/${encodeURIComponent(compId)}`, { headers: headers() });
+          if (!res.ok) return null;
+          const data = await res.json();
+          return data?.attributes?.goalAgentId;
+        });
+        const results = await Promise.all(promises);
+        const validAgentIds = results.filter(Boolean);
+        if (isMounted) {
+          setComponentGoalAgentIds(prev => {
+            if (prev.length === validAgentIds.length && prev.every((id, idx) => id === validAgentIds[idx])) {
+              return prev;
+            }
+            return validAgentIds;
+          });
+        }
+      } catch (err) {
+        console.error("Lỗi khi tải goalAgentId của DT thành phần:", err);
+      }
+    };
+
+    fetchComponentAgents();
+    return () => {
+      isMounted = false;
+    };
+  }, [thing]);
 
   useEffect(() => {
     if (graphContainerRef.current) {
@@ -172,9 +211,6 @@ const Module2DTStatus = () => {
           <span className="dt-namespace" style={{ fontSize: '1rem' }}>{thingId}</span>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn btn-primary" onClick={() => setShowSetupModal(true)}>
-            ⚙ Thiết lập Biểu đồ
-          </button>
           <button className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => navigate('/')}>
             ← Quay lại danh sách
           </button>
@@ -226,13 +262,32 @@ const Module2DTStatus = () => {
             <button className="btn" style={{ padding: '2px 8px', fontSize: '0.7rem', background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }} onClick={() => setShowFullGraphModal(true)}>Đầy đủ →</button>
           </div>
           <div ref={graphContainerRef} className="graph-container">
-            <KGGraph key={graphRefreshKey} thingId={thingId} goalRootId={thing?.attributes?.goalRootId} width={graphSize.width} height={graphSize.height} />
+            {(() => {
+              const isLargeDT = !!thing?.features?.components?.properties?.thingIds?.length;
+              return (
+                <KGGraph 
+                  key={graphRefreshKey} 
+                  thingId={thingId} 
+                  goalAgentId={thing?.attributes?.goalAgentId} 
+                  componentGoalAgentIds={componentGoalAgentIds}
+                  isLarge={isLargeDT} 
+                  width={graphSize.width} 
+                  height={graphSize.height} 
+                />
+              );
+            })()}
           </div>
         </div>
 
 
-        <div className="glass-panel panel-f" style={{ gridColumn: 'span 6', minHeight: '400px' }}>
-          <ObjectController thingId={thingId} goalRootId={thing?.attributes?.goalRootId} onAction={handleControllerAction} onOpenSetup={() => setShowSetupModal(true)} />
+        <div className="glass-panel panel-f" style={{ gridColumn: 'span 6', height: '400px' }}>
+          <ObjectController 
+            thingId={thingId} 
+            goalRootId={thing?.attributes?.goalRootId} 
+            goalAgentId={thing?.attributes?.goalAgentId} 
+            onAction={handleControllerAction} 
+            onOpenSetup={() => setShowSetupModal(true)} 
+          />
         </div>
 
 
@@ -411,7 +466,20 @@ const Module2DTStatus = () => {
               <button className="close-btn" onClick={() => setShowFullGraphModal(false)} style={{ fontSize: '1.5rem', background: 'transparent' }}>&times;</button>
             </div>
             <div style={{ height: '70vh', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', overflow: 'hidden' }}>
-              <KGGraph key={graphRefreshKey} thingId={thingId} goalRootId={thing?.attributes?.goalRootId} width={1000} height={window.innerHeight * 0.7} />
+              {(() => {
+                const isLargeDT = !!thing?.features?.components?.properties?.thingIds?.length;
+                return (
+                  <KGGraph 
+                    key={graphRefreshKey} 
+                    thingId={thingId} 
+                    goalAgentId={thing?.attributes?.goalAgentId} 
+                    componentGoalAgentIds={componentGoalAgentIds}
+                    isLarge={isLargeDT} 
+                    width={1000} 
+                    height={window.innerHeight * 0.7} 
+                  />
+                );
+              })()}
             </div>
           </div>
         </div>

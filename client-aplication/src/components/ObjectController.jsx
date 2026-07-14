@@ -5,7 +5,7 @@ import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD } from '../config';
 const driver = neo4j.driver(NEO4J_URI, neo4j.auth.basic(NEO4J_USER, NEO4J_PASSWORD));
 
 
-const ObjectController = ({ thingId, goalRootId, onAction, onOpenSetup }) => {
+const ObjectController = ({ thingId, goalRootId, goalAgentId, onAction, onOpenSetup }) => {
   const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -18,8 +18,24 @@ const ObjectController = ({ thingId, goalRootId, onAction, onOpenSetup }) => {
       setError(null);
       const session = driver.session();
       try {
-        let finalGoalRootId = goalRootId;
-        if (!finalGoalRootId) {
+        let query;
+        let params = {};
+
+        if (goalRootId) {
+          query = `
+            MATCH (root:Goal {id: $goalRootId})-[:REFINES*0..]->(target:Goal)
+            RETURN DISTINCT target
+          `;
+          params = { goalRootId };
+        } else if (goalAgentId) {
+          query = `
+            MATCH (agent:Agent {id: $goalAgentId})<-[:DELEGATED_TO]-(root:Goal)-[:REFINES*0..]->(target:Goal)
+            RETURN DISTINCT target
+          `;
+          params = { goalAgentId };
+        } else {
+          // Fallback guessing based on thingId
+          let finalGoalRootId = '';
           const idStr = thingId.toLowerCase();
           if (idStr.includes('kettle')) {
             finalGoalRootId = 'G_KETTLE_ROOT';
@@ -28,22 +44,22 @@ const ObjectController = ({ thingId, goalRootId, onAction, onOpenSetup }) => {
           } else if (idStr.includes('coffee') || idStr.includes('system')) {
             finalGoalRootId = 'G_SYSTEM_ROOT';
           }
+
+          if (!finalGoalRootId) {
+            setTargets([]);
+            setLoading(false);
+            return;
+          }
+
+          query = `
+            MATCH (root:Goal {id: $goalRootId})-[:REFINES*0..]->(target:Goal)
+            RETURN DISTINCT target
+          `;
+          params = { goalRootId: finalGoalRootId };
         }
 
-        if (!finalGoalRootId) {
-          setTargets([]);
-          setLoading(false);
-          return;
-        }
-
-
-        const query = `
-          MATCH (root:Goal {id: $goalRootId})-[:REFINES*0..]->(target:Goal)
-          RETURN DISTINCT target
-        `;
-
-        console.log('Đang truy vấn mục tiêu cho:', thingId, 'với root:', finalGoalRootId);
-        const result = await session.run(query, { goalRootId: finalGoalRootId });
+        console.log('Đang truy vấn mục tiêu cho:', thingId, 'với query:', query, 'params:', params);
+        const result = await session.run(query, params);
 
         const foundTargets = result.records.map(record => {
           const node = record.get('target');
@@ -69,7 +85,7 @@ const ObjectController = ({ thingId, goalRootId, onAction, onOpenSetup }) => {
     };
 
     fetchTargets();
-  }, [thingId, goalRootId]);
+  }, [thingId, goalRootId, goalAgentId]);
 
   return (
     <div className="glass-panel" style={{
