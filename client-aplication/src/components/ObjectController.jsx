@@ -18,45 +18,38 @@ const ObjectController = ({ thingId, goalRootId, goalAgentId, onAction, onOpenSe
       setError(null);
       const session = driver.session();
       try {
-        let query;
-        let params = {};
+        // `goalRootId` and `goalAgentId` are both accepted and either may point
+        // at a root Goal (G_*) or an Agent (A_*). Resolve the anchor to the goal
+        // root before walking the REFINES tree.
+        let anchorId = goalRootId || goalAgentId;
 
-        if (goalRootId) {
-          query = `
-            MATCH (root:Goal {id: $goalRootId})-[:REFINES*0..]->(target:Goal)
-            RETURN DISTINCT target
-          `;
-          params = { goalRootId };
-        } else if (goalAgentId) {
-          query = `
-            MATCH (agent:Agent {id: $goalAgentId})<-[:DELEGATED_TO]-(root:Goal)-[:REFINES*0..]->(target:Goal)
-            RETURN DISTINCT target
-          `;
-          params = { goalAgentId };
-        } else {
+        if (!anchorId) {
           // Fallback guessing based on thingId
-          let finalGoalRootId = '';
           const idStr = thingId.toLowerCase();
           if (idStr.includes('kettle')) {
-            finalGoalRootId = 'G_KETTLE_ROOT';
+            anchorId = 'G_KETTLE_ROOT';
           } else if (idStr.includes('grinder')) {
-            finalGoalRootId = 'G_GRINDER_ROOT';
+            anchorId = 'G_GRINDER_ROOT';
           } else if (idStr.includes('coffee') || idStr.includes('system')) {
-            finalGoalRootId = 'G_SYSTEM_ROOT';
+            anchorId = 'G_SYSTEM_ROOT';
           }
-
-          if (!finalGoalRootId) {
-            setTargets([]);
-            setLoading(false);
-            return;
-          }
-
-          query = `
-            MATCH (root:Goal {id: $goalRootId})-[:REFINES*0..]->(target:Goal)
-            RETURN DISTINCT target
-          `;
-          params = { goalRootId: finalGoalRootId };
         }
+
+        if (!anchorId) {
+          setTargets([]);
+          setLoading(false);
+          return;
+        }
+
+        const query = `
+          MATCH (anchor)
+          WHERE anchor.id = $anchorId AND (anchor:Agent OR anchor:Goal)
+          OPTIONAL MATCH (anchor)<-[:DELEGATED_TO]-(delegatedRoot:Goal)
+          WITH coalesce(delegatedRoot, anchor) AS rootGoal
+          MATCH (rootGoal)-[:REFINES*0..]->(target:Goal)
+          RETURN DISTINCT target
+        `;
+        const params = { anchorId };
 
         console.log('Đang truy vấn mục tiêu cho:', thingId, 'với query:', query, 'params:', params);
         const result = await session.run(query, params);

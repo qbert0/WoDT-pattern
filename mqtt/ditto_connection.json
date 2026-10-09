@@ -1,0 +1,41 @@
+{
+  "name": "WoDT local MQTT connection",
+  "connectionType": "mqtt",
+  "connectionStatus": "open",
+  "uri": "tcp://mosquitto:1883",
+  "sources": [
+    {
+      "addresses": [
+        "smart-home/kettle-01/things/twin/commands/modify",
+        "smart-home/kettle-01/things/live/messages/+/response",
+        "smart-home/grinder-01/things/twin/commands/modify",
+        "smart-home/grinder-01/things/live/messages/+/response"
+      ],
+      "consumerCount": 1,
+      "qos": 0,
+      "authorizationContext": [
+        "nginx:ditto"
+      ],
+      "headerMapping": {},
+      "payloadMapping": [
+        "Ditto"
+      ]
+    }
+  ],
+  "targets": [
+    {
+      "address": "smart-home/{{ thing:name }}/things/live/messages/{{ topic:subject }}",
+      "topics": [
+        "_/_/things/live/messages"
+      ],
+      "qos": 0,
+      "authorizationContext": [
+        "nginx:ditto"
+      ],
+      "headerMapping": {},
+      "payloadMapping": [
+        "Ditto"
+      ]
+    }
+  ]
+}

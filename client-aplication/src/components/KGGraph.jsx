@@ -515,16 +515,23 @@ const KGGraph = ({ thingId, goalAgentId, componentGoalAgentIds = [], isLarge, wi
 
       try {
 
+        // `goalAgentId` can hold either an Agent id (A_*) or a Goal id (G_*),
+        // depending on how the Digital Twin registered itself. Anchor on
+        // whichever node the id resolves to so the goal model always renders.
         const query = goalAgentId
           ? (isLarge
               ? `
-                UNWIND $agentIds AS agentId
-                MATCH path = (agent:Agent {id: agentId})-[*0..5]-(m)
+                UNWIND $agentIds AS anchorId
+                MATCH (anchor)
+                WHERE anchor.id = anchorId AND (anchor:Agent OR anchor:Goal)
+                MATCH path = (anchor)-[*0..5]-(m)
                 WHERE ALL(rel IN relationships(path) WHERE type(rel) <> 'DEPENDS_ON' OR rel.contextId = $thingId)
                 RETURN path
               `
               : `
-                MATCH path = (agent:Agent {id: $goalAgentId})-[*0..5]-(m)
+                MATCH (anchor)
+                WHERE anchor.id = $goalAgentId AND (anchor:Agent OR anchor:Goal)
+                MATCH path = (anchor)-[*0..5]-(m)
                 WHERE NONE(rel IN relationships(path) WHERE type(rel) = 'DEPENDS_ON')
                 RETURN path
               `

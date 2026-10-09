@@ -36,5 +36,8 @@ client-aplication/node_modules/
 neo4j/data/
 neo4j/logs/
 neo4j/run/
+
+# Ditto MongoDB persistent data (host bind mount)
+ditto/docker/data/
 smart_kettle_simulator/.env
 smart_grinder_simulator/.env

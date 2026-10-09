@@ -1,0 +1,27 @@
+# Local MQTT broker for WoDT-pattern (Eclipse Mosquitto).
+#
+# Start:  docker compose -f mqtt/docker-compose.yml up -d
+# Stop:   docker compose -f mqtt/docker-compose.yml down
+#
+# Reachable from the host at mqtt://localhost:1883 and from the other
+# containers on the shared `wodt` network at mqtt://mosquitto:1883
+# (this is the URI used by the Ditto MQTT connection).
+
+networks:
+  wodt:
+    external: true
+
+services:
+  mosquitto:
+    image: docker.io/eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - wodt
+    logging:
+      options:
+        max-size: 10m
