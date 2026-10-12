@@ -37,6 +37,15 @@ CYPHER_FILES = [
     "grinder_kg.md",
     "system_kg.md",
     "integration_relations.md",
+    # WareTwin goal KG (component DTs on Eclipse Ditto → goal graph).
+    # Component files trước, system + integration sau cùng.
+    "waretwin_robot_kg.md",
+    "waretwin_lift_kg.md",
+    "waretwin_conveyor_kg.md",
+    "waretwin_zone_kg.md",
+    "waretwin_perception_kg.md",
+    "waretwin_system_kg.md",
+    "waretwin_integration_relations.md",
 ]
 
 
