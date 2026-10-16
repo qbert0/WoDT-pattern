@@ -1,50 +1,21 @@
 // =========================
 // WARETWIN INTEGRATION RELATIONS
 // =========================
-// Phụ thuộc giữa system và các DT thành phần, giữa các DT với nhau,
-// và giữa các Task (parameter/execution). Chạy SAU tất cả file *_kg.md.
-//
-// Quy ước (theo casestudy): DEPENDS_ON chỉ dùng cho leaf goal → leaf goal,
-// hoặc task → task. System leaf goal KHÔNG có REFINES con.
+// Chạy sau các file *_kg.md. System nối cây thành phần bằng REFINES.
+// DEPENDS_ON chỉ biểu diễn điều kiện phối hợp và truyền tham số/thứ tự thực thi.
+// Giữ nguyên nhánh EnsureOperationalSafety và các phụ thuộc của Zone/Perception.
 
-// =========================
-// SYSTEM LEAF -> COMPONENT ROOT (ACHIEVED)
-// =========================
-
-// Vận chuyển hàng cần robot thực thi nhiệm vụ
-MATCH (s:Goal {id:'G_WT_TRANSPORT'}), (t:Goal {id:'G_ROBOT_ROOT'})
-MERGE (s)-[r:DEPENDS_ON]->(t)
-SET r.type = 'ACHIEVED',
-    r.description = 'Luồng vận chuyển hàng đạt được khi RobotAgent hoàn thành nhiệm vụ';
-
-// Luồng liên tầng cần thang máy
-MATCH (s:Goal {id:'G_WT_CROSSFLOOR'}), (t:Goal {id:'G_LIFT_ROOT'})
-MERGE (s)-[r:DEPENDS_ON]->(t)
-SET r.type = 'ACHIEVED',
-    r.description = 'Hàng liên tầng chỉ thông khi LiftAgent phục vụ được yêu cầu';
-
-// An toàn cần zone + perception
-MATCH (s:Goal {id:'G_WT_SAFETY'}), (t:Goal {id:'G_ZONE_ROOT'})
-MERGE (s)-[r:DEPENDS_ON]->(t)
-SET r.type = 'ACHIEVED',
-    r.description = 'An toàn vận hành cần ZoneAgent duy trì giao thông an toàn';
-
-MATCH (s:Goal {id:'G_WT_SAFETY'}), (t:Goal {id:'G_PERCEPTION_ROOT'})
-MERGE (s)-[r:DEPENDS_ON]->(t)
-SET r.type = 'ACHIEVED',
-    r.description = 'An toàn vận hành cần PerceptionAgent phát hiện nguy hiểm';
-
-// Năng lượng cần nhánh MaintainBattery của robot
-MATCH (s:Goal {id:'G_WT_ENERGY'}), (t:Goal {id:'G_R_ENERGY'})
-MERGE (s)-[r:DEPENDS_ON]->(t)
-SET r.type = 'ACHIEVED',
-    r.description = 'Duy trì năng lượng đội xe cần RobotAgent giữ pin trên ngưỡng';
-
-// Hạ tầng cần băng tải cấp hàng
-MATCH (s:Goal {id:'G_WT_INFRA'}), (t:Goal {id:'G_CONV_ROOT'})
-MERGE (s)-[r:DEPENDS_ON]->(t)
-SET r.type = 'ACHIEVED',
-    r.description = 'Khả dụng hạ tầng phụ thuộc ConveyorAgent cấp hàng cho trạm';
+// Bỏ bốn phụ thuộc ACHIEVED cũ của system.
+// Transport/CrossFloor/Infra dùng REFINES, FleetEnergy dùng task thu thập thông tin.
+UNWIND [
+  {parentId: 'G_WT_TRANSPORT', childId: 'G_R_EXECUTE_TRANSPORT'},
+  {parentId: 'G_WT_CROSSFLOOR', childId: 'G_LT_PROVIDE_VERTICAL_TRANSPORT'},
+  {parentId: 'G_WT_ENERGY', childId: 'G_R_ENERGY'},
+  {parentId: 'G_WT_INFRA', childId: 'G_CV_PROVIDE_MATERIAL_FLOW'}
+] AS refinement
+MATCH (:Goal {id: refinement.parentId})-[obsolete:DEPENDS_ON]->(:Goal {id: refinement.childId})
+WHERE obsolete.type = 'ACHIEVED'
+DELETE obsolete;
 
 // Có đơn trước đã rồi mới vận chuyển
 MATCH (s:Goal {id:'G_WT_TRANSPORT'}), (t:Goal {id:'G_WT_ALLOC'})
@@ -58,10 +29,17 @@ SET r.type = 'ACHIEVED',
 // =========================
 
 // Robot đi liên tầng cần thang máy (leaf goal -> component root)
-MATCH (s:Goal {id:'G_R_NAVIGATE'}), (t:Goal {id:'G_LIFT_ROOT'})
+MATCH (s:Goal {id:'G_R_NAVIGATE'}), (t:Goal {id:'G_LT_PROVIDE_VERTICAL_TRANSPORT'})
 MERGE (s)-[r:DEPENDS_ON]->(t)
 SET r.type = 'ACHIEVED',
     r.description = 'Định tuyến liên tầng phụ thuộc LiftAgent đưa robot sang tầng đích';
+
+// Robot tránh va chạm dựa trên khả năng phát hiện nguy hiểm của Perception.
+// Đây là phụ thuộc phối hợp, không phân rã lại goal hoặc đổi Agent phụ trách.
+MATCH (s:Goal {id:'G_R_SAFE'}), (t:Goal {id:'G_P_DETECT'})
+MERGE (s)-[r:DEPENDS_ON]->(t)
+SET r.type = 'ACHIEVED',
+    r.description = 'Tránh va chạm phụ thuộc vào khả năng phát hiện nguy hiểm của PerceptionAgent';
 
 // Zone chặn khi nguy hiểm phụ thuộc phát hiện của perception
 MATCH (s:Goal {id:'G_Z_BLOCK'}), (t:Goal {id:'G_P_DETECT'})

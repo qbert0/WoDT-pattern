@@ -1,3 +1,4 @@
+import { getThingGoalAnchor } from '../../../goal_model/goals';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -61,7 +62,7 @@ const Module2DTStatus = () => {
           const res = await fetch(`${BASE_URL}/things/${encodeURIComponent(compId)}`, { headers: headers() });
           if (!res.ok) return null;
           const data = await res.json();
-          return data?.attributes?.goalAgentId;
+          return getThingGoalAnchor(data);
         });
         const results = await Promise.all(promises);
         const validAgentIds = results.filter(Boolean);
@@ -268,7 +269,8 @@ const Module2DTStatus = () => {
                 <KGGraph 
                   key={graphRefreshKey} 
                   thingId={thingId} 
-                  goalAgentId={thing?.attributes?.goalAgentId} 
+                  goalRootId={thing?.attributes?.goalRootId}
+                  goalAgentId={thing?.attributes?.goalAgentId}
                   componentGoalAgentIds={componentGoalAgentIds}
                   isLarge={isLargeDT} 
                   width={graphSize.width} 
@@ -283,8 +285,8 @@ const Module2DTStatus = () => {
         <div className="glass-panel panel-f" style={{ gridColumn: 'span 6', height: '400px' }}>
           <ObjectController 
             thingId={thingId} 
-            goalRootId={thing?.attributes?.goalRootId} 
-            goalAgentId={thing?.attributes?.goalAgentId} 
+            goalRootId={thing?.attributes?.goalRootId}
+            goalAgentId={thing?.attributes?.goalAgentId}
             onAction={handleControllerAction} 
             onOpenSetup={() => setShowSetupModal(true)} 
           />
@@ -472,7 +474,8 @@ const Module2DTStatus = () => {
                   <KGGraph 
                     key={graphRefreshKey} 
                     thingId={thingId} 
-                    goalAgentId={thing?.attributes?.goalAgentId} 
+                    goalRootId={thing?.attributes?.goalRootId}
+                    goalAgentId={thing?.attributes?.goalAgentId}
                     componentGoalAgentIds={componentGoalAgentIds}
                     isLarge={isLargeDT} 
                     width={1000} 

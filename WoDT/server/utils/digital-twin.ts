@@ -1,3 +1,5 @@
+import { resolveThingGoalRoot } from './goal-model'
+import { normalizeGoalId } from '../../../goal_model/goals'
 import { dittoGet } from './ditto'
 import { runNeo4jQuery } from './neo4j'
 
@@ -75,24 +77,6 @@ const parseInputParameters = (raw: unknown): InputParameter[] => {
         type: type || 'string'
       }
     })
-}
-
-const inferGoalRootId = (thing: any): string | null => {
-  const attributes = thing?.attributes || {}
-
-  if (typeof attributes.goalRootId === 'string' && attributes.goalRootId) {
-    return attributes.goalRootId
-  }
-
-  if (typeof attributes.agentGoalRootId === 'string' && attributes.agentGoalRootId) {
-    return attributes.agentGoalRootId
-  }
-
-  const thingId = String(thing?.thingId || '')
-  if (thingId.includes('kettle')) return 'G_KETTLE_ROOT'
-  if (thingId.includes('grinder')) return 'G_GRINDER_ROOT'
-
-  return null
 }
 
 const priorityByTaskCommand: Record<string, number> = {
@@ -179,7 +163,7 @@ const getGoalTasks = async (goalId: string) => {
       collect(DISTINCT dep.id) AS dependsOn
     ORDER BY taskId
     `,
-    { goalId }
+    { goalId: normalizeGoalId(goalId) }
   )
 }
 
@@ -235,7 +219,7 @@ const getVisibleGoals = (
 
 export const getThingActions = async (thingId: string) => {
   const thing = await dittoGet<any>(`/things/${thingId}`)
-  const goalRootId = inferGoalRootId(thing)
+  const goalRootId = await resolveThingGoalRoot(thing)
 
   if (!goalRootId) {
     return {

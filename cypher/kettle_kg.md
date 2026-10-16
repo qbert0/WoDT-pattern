@@ -10,7 +10,7 @@ SET ak.name = 'KettleAgent';
 // =========================
 
 // Root goal
-MERGE (gk_root:Goal {id: 'G_KETTLE_ROOT'})
+MERGE (gk_root:Goal {id: 'G_K_CONTROL_THERMAL_OUTPUT'})
 SET gk_root.name = 'ControlThermalOutput',
     gk_root.description = 'Điều khiển trạng thái nhiệt của ấm đun nước';
 
@@ -36,7 +36,7 @@ SET gk12.name = 'EnsureSufficientWaterVolume',
 // =========================
 // GOAL REFINEMENT
 // =========================
-MATCH (root:Goal {id:'G_KETTLE_ROOT'}),
+MATCH (root:Goal {id:'G_K_CONTROL_THERMAL_OUTPUT'}),
       (gk1:Goal {id:'G_K1'}),
       (gk2:Goal {id:'G_K2'})
 MERGE (root)-[r1:REFINES]->(gk1)
@@ -56,7 +56,7 @@ SET r4.type = 'AND';
 // =========================
 // DELEGATION
 // =========================
-MATCH (root:Goal {id:'G_KETTLE_ROOT'}),
+MATCH (root:Goal {id:'G_K_CONTROL_THERMAL_OUTPUT'}),
       (ak:Agent {id:'A_KETTLE'})
 MERGE (root)-[:DELEGATED_TO]->(ak);
 

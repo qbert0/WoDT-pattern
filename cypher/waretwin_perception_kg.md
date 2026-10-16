@@ -20,7 +20,7 @@ SET ap.name = 'PerceptionAgent',
 // =========================
 
 // Root goal
-MERGE (gp_root:Goal {id: 'G_PERCEPTION_ROOT'})
+MERGE (gp_root:Goal {id: 'G_P_PROVIDE_SITUATIONAL_AWARENESS'})
 SET gp_root.name = 'ProvideSituationalAwareness',
     gp_root.description = 'Cung cấp nhận thức tình huống cho kho: phát hiện nguy hiểm và báo telemetry';
 
@@ -36,7 +36,7 @@ SET gp_telemetry.name = 'ReportTelemetry',
 // =========================
 // GOAL REFINEMENT
 // =========================
-MATCH (root:Goal {id:'G_PERCEPTION_ROOT'}),
+MATCH (root:Goal {id:'G_P_PROVIDE_SITUATIONAL_AWARENESS'}),
       (gd:Goal {id:'G_P_DETECT'}),
       (gt:Goal {id:'G_P_TELEMETRY'})
 MERGE (root)-[r1:REFINES]->(gd)
@@ -48,8 +48,14 @@ SET r2.type = 'AND';
 // =========================
 // DELEGATION
 // =========================
-MATCH (root:Goal {id:'G_PERCEPTION_ROOT'}),
-      (ap:Agent {id:'A_PERCEPTION'})
+// Root goal chịu trách nhiệm điều phối perception. Các leaf goal không gán trực tiếp Agent.
+// REFINES chỉ nằm trong model này, không nối sang cây goal của model khác.
+// Agent dùng chung theo id với tham chiếu từ system (xem waretwin_ditto_mapping.md).
+MATCH (goal:Goal)-[r:DELEGATED_TO]->(ap:Agent {id:'A_PERCEPTION'})
+WHERE goal.id IN ['G_P_DETECT', 'G_P_TELEMETRY']
+DELETE r;
+
+MATCH (root:Goal {id:'G_P_PROVIDE_SITUATIONAL_AWARENESS'}), (ap:Agent {id:'A_PERCEPTION'})
 MERGE (root)-[:DELEGATED_TO]->(ap);
 
 

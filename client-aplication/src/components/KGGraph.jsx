@@ -1,7 +1,8 @@
+import { getThingGoalAnchor, goalAnchorCandidates, GOAL_HIERARCHY_QUERY, GOAL_DEPENDENCIES_QUERY } from '../../../goal_model/goals';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import neo4j from 'neo4j-driver';
-import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_QUERY_LIMIT } from '../config';
+import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD } from '../config';
 
 
 let driver;
@@ -12,9 +13,10 @@ try {
   console.error('Lỗi khởi tạo driver:', err);
 }
 
-const KGGraph = ({ thingId, goalAgentId, componentGoalAgentIds = [], isLarge, width, height }) => {
+const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [], isLarge, width, height }) => {
   const [data, setData] = useState({ nodes: [], links: [] });
   const [loading, setLoading] = useState(true);
+  const [showDependencies, setShowDependencies] = useState(false);
   const [error, setError] = useState(null);
 
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
@@ -501,7 +503,8 @@ const KGGraph = ({ thingId, goalAgentId, componentGoalAgentIds = [], isLarge, wi
         return;
       }
 
-      if (!goalAgentId) {
+      const anchorId = getThingGoalAnchor({ thingId, attributes: { goalRootId, goalAgentId } });
+      if (!anchorId) {
         if (isMounted) {
           setData({ nodes: [], links: [] });
           setLoading(false);
@@ -515,109 +518,46 @@ const KGGraph = ({ thingId, goalAgentId, componentGoalAgentIds = [], isLarge, wi
 
       try {
 
-        // `goalAgentId` can hold either an Agent id (A_*) or a Goal id (G_*),
-        // depending on how the Digital Twin registered itself. Anchor on
-        // whichever node the id resolves to so the goal model always renders.
-        const query = goalAgentId
-          ? (isLarge
-              ? `
-                UNWIND $agentIds AS anchorId
-                MATCH (anchor)
-                WHERE anchor.id = anchorId AND (anchor:Agent OR anchor:Goal)
-                MATCH path = (anchor)-[*0..5]-(m)
-                WHERE ALL(rel IN relationships(path) WHERE type(rel) <> 'DEPENDS_ON' OR rel.contextId = $thingId)
-                RETURN path
-              `
-              : `
-                MATCH (anchor)
-                WHERE anchor.id = $goalAgentId AND (anchor:Agent OR anchor:Goal)
-                MATCH path = (anchor)-[*0..5]-(m)
-                WHERE NONE(rel IN relationships(path) WHERE type(rel) = 'DEPENDS_ON')
-                RETURN path
-              `
-            )
-          : `
-            MATCH (n)-[r]->(m)
-            RETURN n, r, m
-            LIMIT ${NEO4J_QUERY_LIMIT}
-          `;
-
-        const agentIds = [goalAgentId, ...componentGoalAgentIds];
-        const result = await session.run(query, { goalAgentId, agentIds, thingId });
-
+        const anchors = isLarge ? [anchorId, ...componentGoalAgentIds] : [anchorId];
+        const anchorGroups = [...new Set(anchors.filter(Boolean))].map(goalAnchorCandidates);
+        const result = await session.run(GOAL_HIERARCHY_QUERY, { anchorGroups });
+        const records = [...result.records];
+        if (showDependencies) {
+          const dependencies = await session.run(GOAL_DEPENDENCIES_QUERY, { anchorGroups, thingId });
+          records.push(...dependencies.records);
+        }
         const nodesMap = new Map();
         const links = [];
         const seenLinks = new Set();
-
-        result.records.forEach(record => {
-          if (goalAgentId) {
-            const path = record.get('path');
-            if (path) {
-              const startNode = path.start;
-              const endNode = path.end;
-
-              [startNode, endNode].forEach(node => {
-                if (node && !nodesMap.has(node.identity.toString())) {
-                  const props = node.properties;
-                  nodesMap.set(node.identity.toString(), {
-                    id: node.identity.toString(),
-                    name: props.name || props.id || node.labels[0] || 'Unknown',
-                    type: node.labels[0] || 'Node',
-                    properties: props,
-                    val: node.labels[0] === 'Agent' ? 15 : (node.labels[0] === 'Goal' ? 12 : 8)
-                  });
-                }
+        const addNode = (node) => {
+          if (!node || nodesMap.has(node.identity.toString())) return;
+          const props = node.properties;
+          nodesMap.set(node.identity.toString(), {
+            id: node.identity.toString(),
+            name: props.name || props.id || node.labels[0] || 'Unknown',
+            type: node.labels[0] || 'Node',
+            properties: props,
+            val: node.labels[0] === 'Agent' ? 15 : (node.labels[0] === 'Goal' ? 12 : 8),
+          });
+        };
+        records.forEach(record => {
+          for (const field of record.keys) {
+            const path = record.get(field);
+            if (!path) continue;
+            addNode(path.start);
+            addNode(path.end);
+            path.segments.forEach(segment => {
+              addNode(segment.start);
+              addNode(segment.end);
+              const r = segment.relationship;
+              const key = r.identity.toString();
+              if (seenLinks.has(key)) return;
+              seenLinks.add(key);
+              links.push({
+                source: r.start.toString(), target: r.end.toString(),
+                label: r.type, properties: r.properties,
               });
-
-              path.segments.forEach(segment => {
-                const n = segment.start;
-                const m = segment.end;
-                const r = segment.relationship;
-
-                const linkKey = `${r.start.toString()}-${r.end.toString()}-${r.type}`;
-                if (!seenLinks.has(linkKey)) {
-                  seenLinks.add(linkKey);
-                  links.push({
-                    source: r.start.toString(),
-                    target: r.end.toString(),
-                    label: r.type,
-                    properties: r.properties
-                  });
-                }
-              });
-            }
-          } else {
-            const n = record.get('n');
-            const m = record.get('m');
-            const r = record.get('r');
-
-
-            [n, m].forEach(node => {
-              if (node && !nodesMap.has(node.identity.toString())) {
-                const props = node.properties;
-                nodesMap.set(node.identity.toString(), {
-                  id: node.identity.toString(),
-                  name: props.name || props.id || node.labels[0] || 'Unknown',
-                  type: node.labels[0] || 'Node',
-                  properties: props,
-                  val: node.labels[0] === 'Agent' ? 15 : (node.labels[0] === 'Goal' ? 12 : 8)
-                });
-              }
             });
-
-
-            if (r) {
-              const linkKey = `${r.start.toString()}-${r.end.toString()}-${r.type}`;
-              if (!seenLinks.has(linkKey)) {
-                seenLinks.add(linkKey);
-                links.push({
-                  source: r.start.toString(),
-                  target: r.end.toString(),
-                  label: r.type,
-                  properties: r.properties
-                });
-              }
-            }
           }
         });
 
@@ -644,7 +584,7 @@ const KGGraph = ({ thingId, goalAgentId, componentGoalAgentIds = [], isLarge, wi
     return () => {
       isMounted = false;
     };
-  }, [thingId, goalAgentId, componentGoalAgentIds, isLarge, localRefreshKey]);
+  }, [thingId, goalRootId, goalAgentId, componentGoalAgentIds, isLarge, localRefreshKey, showDependencies]);
 
   const getNodeColor = (node) => {
     switch (node.type) {
@@ -685,6 +625,14 @@ const KGGraph = ({ thingId, goalAgentId, componentGoalAgentIds = [], isLarge, wi
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', borderRadius: '8px' }}>
+      <button
+        className="btn"
+        aria-pressed={showDependencies}
+        onClick={() => setShowDependencies(value => !value)}
+        style={{ position: 'absolute', bottom: 28, left: 10, zIndex: 2, fontSize: '0.75rem' }}
+      >
+        {showDependencies ? 'Ẩn quan hệ phối hợp' : 'Xem quan hệ phối hợp'}
+      </button>
       <ForceGraph2D
         graphData={data}
         width={width}

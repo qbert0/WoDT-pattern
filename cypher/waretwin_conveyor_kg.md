@@ -13,7 +13,7 @@ SET ac.name = 'ConveyorAgent',
 // =========================
 
 // Root goal
-MERGE (gc_root:Goal {id: 'G_CONV_ROOT'})
+MERGE (gc_root:Goal {id: 'G_CV_PROVIDE_MATERIAL_FLOW'})
 SET gc_root.name = 'ProvideMaterialFlow',
     gc_root.description = 'Cung cấp dòng hàng tự động tới các trạm đóng gói/phân loại';
 
@@ -33,7 +33,7 @@ SET gc_report.name = 'ReportFailure',
 // =========================
 // GOAL REFINEMENT
 // =========================
-MATCH (root:Goal {id:'G_CONV_ROOT'}),
+MATCH (root:Goal {id:'G_CV_PROVIDE_MATERIAL_FLOW'}),
       (r1:Goal {id:'G_CV_RUN'}),
       (r2:Goal {id:'G_CV_FEED'}),
       (r3:Goal {id:'G_CV_REPORT'})
@@ -48,8 +48,14 @@ SET c.type = 'AND';
 // =========================
 // DELEGATION
 // =========================
-MATCH (root:Goal {id:'G_CONV_ROOT'}),
-      (ac:Agent {id:'A_CONVEYOR'})
+// Chỉ goal gốc được giao trực tiếp cho Agent. Goal con kế thừa trách nhiệm qua cây.
+// Goal lá nối tới Task bằng OPERATIONALIZED_BY.
+// Xóa các cạnh giao trực tiếp cũ trong model để chạy lại seed không tạo hình sao.
+MATCH (root:Goal {id:'G_CV_PROVIDE_MATERIAL_FLOW'})-[:REFINES*1..]->(goal:Goal)
+MATCH (goal)-[obsolete:DELEGATED_TO]->(:Agent {id:'A_CONVEYOR'})
+DELETE obsolete;
+
+MATCH (root:Goal {id:'G_CV_PROVIDE_MATERIAL_FLOW'}), (ac:Agent {id:'A_CONVEYOR'})
 MERGE (root)-[:DELEGATED_TO]->(ac);
 
 

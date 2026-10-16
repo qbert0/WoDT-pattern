@@ -485,7 +485,7 @@ const Module3CreateWizard = () => {
                     setGoalAgentTouched(true);
                     if (goalAgentId.trim()) checkGoalAgentAvailability();
                   }}
-                  placeholder="VD: G_GRINDER_ROOT"
+                  placeholder="VD: G_G_PROVIDE_GROUND_COFFEE"
                   disabled={goalAgentChecking}
                 />
                 {goalAgentTouched && !normalizedGoalAgentId && (

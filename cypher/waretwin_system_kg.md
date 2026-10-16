@@ -3,7 +3,7 @@
 // =========================
 // Agent đại diện cho DT tổng hợp `waretwin:warehouse`.
 // Lưu ý: khác mẫu coffee (system không có Task), WareTwin gộp "điều phối kho"
-// và "Fleet Manager" làm một nên system sở hữu luôn goal AllocateOrders + Task phân đơn.
+// và "Fleet Manager" làm một nên system sở hữu task phân đơn và thu thập năng lượng đội xe.
 MERGE (aw:Agent {id: 'A_WARETWIN'})
 SET aw.name = 'WarehouseCoordinatorAgent',
     aw.thingId = 'waretwin:warehouse',
@@ -16,7 +16,7 @@ SET aw.name = 'WarehouseCoordinatorAgent',
 // =========================
 
 // Root goal
-MERGE (gw_root:Goal {id: 'G_WT_ROOT'})
+MERGE (gw_root:Goal {id: 'G_WT_FULFILL_OPERATIONS'})
 SET gw_root.name = 'FulfillWarehouseOperations',
     gw_root.description = 'Vận hành kho: hoàn thành đơn hàng, an toàn, hiệu quả năng lượng và duy trì hạ tầng';
 
@@ -48,8 +48,9 @@ SET gw_alloc.name = 'AllocateOrders',
 
 // =========================
 // GOAL REFINEMENT
+// Phân rã từ goal cấp kho tới cây goal thành phần và cuối cùng tới Task.
 // =========================
-MATCH (root:Goal {id:'G_WT_ROOT'}),
+MATCH (root:Goal {id:'G_WT_FULFILL_OPERATIONS'}),
       (g1:Goal {id:'G_WT_TRANSPORT'}),
       (g2:Goal {id:'G_WT_CROSSFLOOR'}),
       (g3:Goal {id:'G_WT_SAFETY'}),
@@ -69,13 +70,56 @@ SET r5.type = 'AND'
 MERGE (root)-[r6:REFINES]->(g6)
 SET r6.type = 'AND';
 
+// Giữ cấu trúc an toàn hiện có: Safety -> Zone/Perception -> goal con -> task.
+MATCH (safety:Goal {id:'G_WT_SAFETY'}),
+      (safeTraffic:Goal {id:'G_Z_MAINTAIN_SAFE_TRAFFIC'}),
+      (awareness:Goal {id:'G_P_PROVIDE_SITUATIONAL_AWARENESS'})
+MERGE (safety)-[r1:REFINES]->(safeTraffic)
+SET r1.type = 'AND'
+MERGE (safety)-[r2:REFINES]->(awareness)
+SET r2.type = 'AND';
+
+// Nối cây thành phần bằng REFINES. TransportGoods bao gồm duy trì pin của Robot.
+UNWIND [
+  {parentId: 'G_WT_TRANSPORT', childId: 'G_R_EXECUTE_TRANSPORT'},
+  {parentId: 'G_WT_CROSSFLOOR', childId: 'G_LT_PROVIDE_VERTICAL_TRANSPORT'},
+  {parentId: 'G_WT_CROSSFLOOR', childId: 'G_LT_GATE'},
+  {parentId: 'G_WT_TRANSPORT', childId: 'G_R_ENERGY'},
+  {parentId: 'G_WT_INFRA', childId: 'G_CV_PROVIDE_MATERIAL_FLOW'}
+] AS refinement
+MATCH (parent:Goal {id: refinement.parentId}), (child:Goal {id: refinement.childId})
+MERGE (parent)-[r:REFINES]->(child)
+SET r.type = 'AND';
+
+
+// MaintainFleetEnergy chỉ thu thập thông tin, không chứa nhánh duy trì pin Robot.
+MATCH (:Goal {id:'G_WT_ENERGY'})-[obsolete:REFINES]->(:Goal {id:'G_R_ENERGY'})
+DELETE obsolete;
+
 
 // =========================
 // DELEGATION
 // =========================
-MATCH (root:Goal {id:'G_WT_ROOT'}),
+MATCH (root:Goal {id:'G_WT_FULFILL_OPERATIONS'}),
       (aw:Agent {id:'A_WARETWIN'})
 MERGE (root)-[:DELEGATED_TO]->(aw);
+
+// Robot nhận TransportGoods, Lift nhận EnsureCrossFloorFlow, Conveyor nhận goal gốc thành phần.
+// Các goal bên dưới kế thừa trách nhiệm từ goal được giao.
+UNWIND [
+  {goalId: 'G_WT_ENERGY', agentId: 'A_ROBOT'},
+  {goalId: 'G_WT_INFRA', agentId: 'A_CONVEYOR'}
+] AS assignment
+MATCH (:Goal {id: assignment.goalId})-[obsolete:DELEGATED_TO]->(:Agent {id: assignment.agentId})
+DELETE obsolete;
+
+// Một điểm phân công duy nhất cho vận chuyển hàng và duy trì pin Robot.
+MATCH (transport:Goal {id:'G_WT_TRANSPORT'}), (robot:Agent {id:'A_ROBOT'})
+MERGE (transport)-[:DELEGATED_TO]->(robot);
+
+// Một điểm phân công duy nhất cho cả vận chuyển liên tầng và an toàn cửa.
+MATCH (crossfloor:Goal {id:'G_WT_CROSSFLOOR'}), (lift:Agent {id:'A_LIFT'})
+MERGE (crossfloor)-[:DELEGATED_TO]->(lift);
 
 
 // =========================
@@ -107,6 +151,17 @@ SET to4.name = 'CreateReturnOrder',
 
 
 // =========================
+// FLEET ENERGY TASK
+// =========================
+// Task ở mức KG: thu thập thông tin năng lượng của đội robot.
+MERGE (collectEnergy:Task {id: 'T_FLEET_COLLECT_ENERGY'})
+SET collectEnergy.name = 'CollectRobotEnergyInformation',
+    collectEnergy.command = 'COLLECT_ROBOT_ENERGY_INFORMATION',
+    collectEnergy.inputParameters = '',
+    collectEnergy.outputParameters = 'robot_energy: array';
+
+
+// =========================
 // OPERATIONALIZATION
 // =========================
 MATCH (gw_alloc:Goal {id:'G_WT_ALLOC'}), (to1:Task {id:'T_ORDER_PICK'})
@@ -120,3 +175,6 @@ MERGE (gw_alloc)-[:OPERATIONALIZED_BY]->(to3);
 
 MATCH (gw_alloc:Goal {id:'G_WT_ALLOC'}), (to4:Task {id:'T_ORDER_RETURN'})
 MERGE (gw_alloc)-[:OPERATIONALIZED_BY]->(to4);
+
+MATCH (energy:Goal {id:'G_WT_ENERGY'}), (collectEnergy:Task {id:'T_FLEET_COLLECT_ENERGY'})
+MERGE (energy)-[:OPERATIONALIZED_BY]->(collectEnergy);

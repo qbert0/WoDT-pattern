@@ -8,6 +8,8 @@ services:
     environment:
       NEO4J_AUTH: neo4j/password123
       NEO4J_server_memory_pagecache_size: 512M
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs

@@ -12,8 +12,8 @@ SET al.name = 'LiftAgent',
 // LIFT GOALS
 // =========================
 
-// Root goal
-MERGE (gl_root:Goal {id: 'G_LIFT_ROOT'})
+// Nhánh vận chuyển bên dưới EnsureCrossFloorFlow
+MERGE (gl_root:Goal {id: 'G_LT_PROVIDE_VERTICAL_TRANSPORT'})
 SET gl_root.name = 'ProvideVerticalTransport',
     gl_root.description = 'Chở robot giữa tầng 1 và tầng lửng an toàn, đúng thứ tự';
 
@@ -41,7 +41,7 @@ SET gl_recover.name = 'RecoverFromFault',
 // =========================
 // GOAL REFINEMENT
 // =========================
-MATCH (root:Goal {id:'G_LIFT_ROOT'}),
+MATCH (root:Goal {id:'G_LT_PROVIDE_VERTICAL_TRANSPORT'}),
       (gs:Goal {id:'G_LT_SERVE'}),
       (gr:Goal {id:'G_LT_RECOVER'})
 MERGE (root)-[r1:REFINES]->(gs)
@@ -51,12 +51,9 @@ SET r2.type = 'OR';
 
 MATCH (gs:Goal {id:'G_LT_SERVE'}),
       (gq:Goal {id:'G_LT_QUEUE'}),
-      (gg:Goal {id:'G_LT_GATE'}),
       (gr:Goal {id:'G_LT_RIDE'})
 MERGE (gs)-[r1:REFINES]->(gq)
 SET r1.type = 'AND'
-MERGE (gs)-[r2:REFINES]->(gg)
-SET r2.type = 'AND'
 MERGE (gs)-[r3:REFINES]->(gr)
 SET r3.type = 'AND';
 
@@ -64,9 +61,16 @@ SET r3.type = 'AND';
 // =========================
 // DELEGATION
 // =========================
-MATCH (root:Goal {id:'G_LIFT_ROOT'}),
-      (al:Agent {id:'A_LIFT'})
-MERGE (root)-[:DELEGATED_TO]->(al);
+// EnsureSafeGateOperation là nhánh trực tiếp của EnsureCrossFloorFlow.
+// Bỏ cạnh cũ dưới ServeTransportRequest để không giữ hai vị trí phân rã.
+MATCH (:Goal {id:'G_LT_SERVE'})-[obsolete:REFINES]->(:Goal {id:'G_LT_GATE'})
+DELETE obsolete;
+
+// LiftAgent chỉ nhận EnsureCrossFloorFlow, được gán trong waretwin_system_kg.md.
+// Bỏ phân công cũ ở ProvideVerticalTransport và các goal con, kể cả goal cửa.
+MATCH (goal:Goal)-[obsolete:DELEGATED_TO]->(:Agent {id:'A_LIFT'})
+WHERE goal.id IN ['G_LT_PROVIDE_VERTICAL_TRANSPORT', 'G_LT_SERVE', 'G_LT_QUEUE', 'G_LT_GATE', 'G_LT_RIDE', 'G_LT_RECOVER']
+DELETE obsolete;
 
 
 // =========================

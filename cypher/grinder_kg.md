@@ -10,7 +10,7 @@ SET ag.name = 'GrinderAgent';
 // =========================
 
 // Root goal
-MERGE (gr_root:Goal {id: 'G_GRINDER_ROOT'})
+MERGE (gr_root:Goal {id: 'G_G_PROVIDE_GROUND_COFFEE'})
 SET gr_root.name = 'ProvideGroundCoffee',
     gr_root.description = 'Cung cấp cà phê đã xay theo yêu cầu';
 
@@ -27,7 +27,7 @@ SET gc2.name = 'EnsureRequiredBeanAmount',
 // =========================
 // GOAL REFINEMENT
 // =========================
-MATCH (root:Goal {id:'G_GRINDER_ROOT'}),
+MATCH (root:Goal {id:'G_G_PROVIDE_GROUND_COFFEE'}),
       (gc1:Goal {id:'G_G1'}),
       (gc2:Goal {id:'G_G2'})
 MERGE (root)-[:REFINES {type:'AND'}]->(gc1)
@@ -37,7 +37,7 @@ MERGE (root)-[:REFINES {type:'AND'}]->(gc2);
 // =========================
 // DELEGATED_TO
 // =========================
-MATCH (root:Goal {id:'G_GRINDER_ROOT'}),
+MATCH (root:Goal {id:'G_G_PROVIDE_GROUND_COFFEE'}),
       (ag:Agent {id:'A_GRINDER'})
 MERGE (root)-[:DELEGATED_TO]->(ag);
 

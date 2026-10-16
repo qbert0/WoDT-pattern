@@ -1,3 +1,5 @@
+import { resolveThingGoalRoot } from './goal-model'
+import { GOAL_OWNER_QUERY, normalizeGoalId } from '../../../goal_model/goals'
 import { dittoGet } from './ditto'
 import { executeThingTask } from './digital-twin'
 import { runNeo4jQuery } from './neo4j'
@@ -80,7 +82,7 @@ type SystemExecutePayload = {
   relationInputs?: Record<string, { factor?: number; offset?: number }>
 }
 
-const SYSTEM_ROOT_GOAL_ID = 'G_SYSTEM_ROOT'
+const SYSTEM_ROOT_GOAL_ID = 'G_S_MAKE_COFFEE'
 
 const priorityByTaskCommand: Record<string, number> = {
   SET_VOLUME: 1,
@@ -112,21 +114,6 @@ const formatLabel = (value: string) => {
   return value
     .replace(/_/g, ' ')
     .replace(/([a-z])([A-Z])/g, '$1 $2')
-}
-
-const inferRootGoalIdFromThing = (thing: any): string | null => {
-  const attributes = thing?.attributes || {}
-  const explicitRoot = typeof attributes.goalRootId === 'string' ? attributes.goalRootId : ''
-
-  if (explicitRoot) {
-    return explicitRoot
-  }
-
-  const thingId = String(thing?.thingId || '')
-  if (thingId.includes('kettle')) return 'G_KETTLE_ROOT'
-  if (thingId.includes('grinder')) return 'G_GRINDER_ROOT'
-
-  return null
 }
 
 const getThingFeatureValue = (thing: any, featureId: string, propertyId: string) =>
@@ -272,22 +259,23 @@ const getSystemGoalDependencies = async (goalRootId: string) => {
 
 const getGoalOwner = async (goalId: string) => {
   const records = await runNeo4jQuery<GoalOwner>(
-    `
-    MATCH (goal:Goal {id: $goalId})<-[:REFINES*0..]-(root:Goal)-[:DELEGATED_TO]->(agent:Agent)
-    RETURN DISTINCT
-      root.id AS rootGoalId,
-      agent.id AS agentId
-    LIMIT 1
-    `,
-    { goalId }
+    GOAL_OWNER_QUERY,
+    { goalId: normalizeGoalId(goalId) }
   )
 
   return records[0] || null
 }
 
 const getAllThings = async () => {
-  const raw = await dittoGet<any[] | Record<string, any>>('/things')
-  return Array.isArray(raw) ? raw : Object.values(raw)
+  const things: any[] = []
+  let cursor: string | undefined
+  do {
+    const option = cursor ? `cursor(${cursor})` : 'size(200)'
+    const page = await dittoGet<{ items: any[]; cursor?: string }>(`/search/things?option=${encodeURIComponent(option)}`)
+    things.push(...page.items)
+    cursor = page.cursor
+  } while (cursor)
+  return things
 }
 
 const findThingForGoal = async (goalId: string) => {
@@ -297,7 +285,12 @@ const findThingForGoal = async (goalId: string) => {
   }
 
   const things = await getAllThings()
-  return things.find(thing => inferRootGoalIdFromThing(thing) === owner.rootGoalId) || null
+  const matches = []
+  for (const thing of things) {
+    if (await resolveThingGoalRoot(thing) === owner.rootGoalId) matches.push(thing)
+  }
+  // A shared fleet Agent does not identify an individual device to command.
+  return matches.length === 1 ? matches[0] : null
 }
 
 const buildSystemExecutionOrder = (
@@ -362,7 +355,7 @@ const getTasksForGoal = async (goalId: string) => {
       collect(DISTINCT dep.id) AS dependsOn
     ORDER BY taskId
     `,
-    { goalId }
+    { goalId: normalizeGoalId(goalId) }
   )
 }
 
@@ -502,12 +495,12 @@ export const getSystemActions = async () => {
     goals,
     availableGoals: getVisibleGoals(SYSTEM_ROOT_GOAL_ID, goals, relations),
     dependencies,
-    things: things.map(thing => ({
+    things: await Promise.all(things.map(async thing => ({
       thingId: thing.thingId,
       policyId: thing.policyId,
-      goalRootId: inferRootGoalIdFromThing(thing),
+      goalRootId: await resolveThingGoalRoot(thing),
       features: thing.features || {}
-    })),
+    }))),
     advancedSettings
   }
 }
@@ -516,6 +509,7 @@ export const executeSystemGoal = async (
   goalId: string,
   payload: SystemExecutePayload = {}
 ) => {
+  goalId = normalizeGoalId(goalId)
   const { goalExecutions, tasks, parameterDependencies } = await collectSystemExecutionGraph(goalId)
   const things = await getAllThings()
   const thingMap = new Map(things.map(thing => [String(thing.thingId), thing]))

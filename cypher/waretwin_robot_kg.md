@@ -15,8 +15,8 @@ SET ar.name = 'RobotAgent',
 // ROBOT GOALS
 // =========================
 
-// Root goal: hoàn thành nhiệm vụ vận chuyển được giao
-MERGE (gr_root:Goal {id: 'G_ROBOT_ROOT'})
+// Nhánh thực thi nhiệm vụ bên dưới TransportGoods
+MERGE (gr_root:Goal {id: 'G_R_EXECUTE_TRANSPORT'})
 SET gr_root.name = 'ExecuteTransportTasks',
     gr_root.description = 'Thực thi các nhiệm vụ vận chuyển được Fleet Manager giao';
 
@@ -50,27 +50,24 @@ MERGE (gr_recharge:Goal {id: 'G_R_RECHARGE'})
 SET gr_recharge.name = 'RechargeBattery',
     gr_recharge.description = 'Nạp pin tới ngưỡng vận hành';
 
-// Nhánh an toàn cục bộ (perception + tránh vật cản)
+// Robot phản ứng tránh va chạm dựa trên thông tin nguy hiểm từ Perception.
 MERGE (gr_safe:Goal {id: 'G_R_SAFE'})
 SET gr_safe.name = 'EnsureCollisionFreeOperation',
-    gr_safe.description = 'Phát hiện vật cản/người và tránh, nhường đường an toàn';
+    gr_safe.description = 'Tránh, dừng hoặc nhường đường dựa trên thông tin nguy hiểm';
 
 
 // =========================
 // GOAL REFINEMENT
 // =========================
 
-// Root = OR (làm nhiệm vụ, hoặc đang xử lý pin, hoặc xử lý an toàn)
-MATCH (root:Goal {id:'G_ROBOT_ROOT'}),
+// ExecuteTransportTasks = AND (vận chuyển đồng thời bảo đảm tránh va chạm)
+MATCH (root:Goal {id:'G_R_EXECUTE_TRANSPORT'}),
       (gt:Goal {id:'G_R_TRANSPORT'}),
-      (ge:Goal {id:'G_R_ENERGY'}),
       (gs:Goal {id:'G_R_SAFE'})
 MERGE (root)-[r1:REFINES]->(gt)
-SET r1.type = 'OR'
-MERGE (root)-[r2:REFINES]->(ge)
-SET r2.type = 'OR'
+SET r1.type = 'AND'
 MERGE (root)-[r3:REFINES]->(gs)
-SET r3.type = 'OR';
+SET r3.type = 'AND';
 
 // TransportItem = AND
 MATCH (gt:Goal {id:'G_R_TRANSPORT'}),
@@ -97,9 +94,16 @@ SET r2.type = 'AND';
 // =========================
 // DELEGATION
 // =========================
-MATCH (root:Goal {id:'G_ROBOT_ROOT'}),
-      (ar:Agent {id:'A_ROBOT'})
-MERGE (root)-[:DELEGATED_TO]->(ar);
+// MaintainBattery được chuyển thành nhánh trực tiếp của TransportGoods.
+MATCH (:Goal {id:'G_R_EXECUTE_TRANSPORT'})-[obsolete:REFINES]->(:Goal {id:'G_R_ENERGY'})
+DELETE obsolete;
+
+// RobotAgent chỉ nhận TransportGoods, được gán trong waretwin_system_kg.md.
+// Bỏ phân công cũ ở các goal thành phần, kể cả nhánh năng lượng đã chuyển.
+MATCH (goal:Goal)-[obsolete:DELEGATED_TO]->(:Agent {id:'A_ROBOT'})
+WHERE goal.id IN ['G_R_EXECUTE_TRANSPORT', 'G_R_TRANSPORT', 'G_R_NAVIGATE', 'G_R_PICK', 'G_R_DROP',
+                 'G_R_ENERGY', 'G_R_REACH', 'G_R_RECHARGE', 'G_R_SAFE']
+DELETE obsolete;
 
 
 // =========================

@@ -1,3 +1,4 @@
+import { getThingGoalAnchor, goalAnchorCandidates, GOAL_TARGETS_QUERY } from '../../../goal_model/goals';
 import React, { useState, useEffect } from 'react';
 import neo4j from 'neo4j-driver';
 import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD } from '../config';
@@ -18,38 +19,14 @@ const ObjectController = ({ thingId, goalRootId, goalAgentId, onAction, onOpenSe
       setError(null);
       const session = driver.session();
       try {
-        // `goalRootId` and `goalAgentId` are both accepted and either may point
-        // at a root Goal (G_*) or an Agent (A_*). Resolve the anchor to the goal
-        // root before walking the REFINES tree.
-        let anchorId = goalRootId || goalAgentId;
-
-        if (!anchorId) {
-          // Fallback guessing based on thingId
-          const idStr = thingId.toLowerCase();
-          if (idStr.includes('kettle')) {
-            anchorId = 'G_KETTLE_ROOT';
-          } else if (idStr.includes('grinder')) {
-            anchorId = 'G_GRINDER_ROOT';
-          } else if (idStr.includes('coffee') || idStr.includes('system')) {
-            anchorId = 'G_SYSTEM_ROOT';
-          }
-        }
-
+        const anchorId = getThingGoalAnchor({ thingId, attributes: { goalRootId, goalAgentId } });
         if (!anchorId) {
           setTargets([]);
           setLoading(false);
           return;
         }
-
-        const query = `
-          MATCH (anchor)
-          WHERE anchor.id = $anchorId AND (anchor:Agent OR anchor:Goal)
-          OPTIONAL MATCH (anchor)<-[:DELEGATED_TO]-(delegatedRoot:Goal)
-          WITH coalesce(delegatedRoot, anchor) AS rootGoal
-          MATCH (rootGoal)-[:REFINES*0..]->(target:Goal)
-          RETURN DISTINCT target
-        `;
-        const params = { anchorId };
+        const query = GOAL_TARGETS_QUERY;
+        const params = { anchorGroups: [goalAnchorCandidates(anchorId)] };
 
         console.log('Đang truy vấn mục tiêu cho:', thingId, 'với query:', query, 'params:', params);
         const result = await session.run(query, params);

@@ -1,39 +1,57 @@
-# KG Files for Kettle + Coffee Grinder + System
+# KG Files for Coffee and WareTwin
 
 ## Files
-- `kettle_kg.cypher`: local goal KG of the kettle DT
-- `grinder_kg.cypher`: local goal KG of the coffee grinder DT
-- `system_kg.cypher`: system-level goal KG
-- `integration_relations.cypher`: goal integration file between the system and the DTs, including DT-to-DT dependencies
+
+- `kettle_kg.md`: local goal KG of the kettle DT
+- `grinder_kg.md`: local goal KG of the coffee grinder DT
+- `system_kg.md`: system-level goal KG
+- `integration_relations.md`: goal integration file between the system and the DTs, including DT-to-DT dependencies
 
 ### WareTwin (Eclipse Ditto `waretwin:*`)
+
 - `waretwin_robot_kg.md`: goal KG of the AMR fleet (`robot-R01..R20`)
 - `waretwin_lift_kg.md`: goal KG of the freight lifts (`lift-LIFT-1/2`)
 - `waretwin_conveyor_kg.md`: goal KG of the conveyors (`conveyor-CV01..04`)
-- `waretwin_zone_kg.md`: goal KG of the zones (`zone-A..M`)
+- `waretwin_zone_kg.md`: goal KG of the zones (`zone-A..D`, `zone-M`)
 - `waretwin_perception_kg.md`: goal KG of cameras + sensors (`camera-*`, `sensor-*`)
-- `waretwin_system_kg.md`: warehouse coordinator system goals (incl. `AllocateOrders`) + order tasks
+- `waretwin_system_kg.md`: warehouse coordinator system goals + order tasks + fleet energy information task
 - `waretwin_integration_relations.md`: system ↔ component and DT ↔ DT dependencies
 - `waretwin_ditto_mapping.md`: mapping table Thing ↔ Agent ↔ root Goal
 
+## Migration of existing databases
+
+Existing databases must run [Goal ID migration](README_Goal_ID_Migration.md) before the updated seeds. The loader rejects legacy IDs to avoid creating duplicate hierarchies.
+
 ## Recommended execution order
-1. `kettle_kg.cypher`
-2. `grinder_kg.cypher`
-3. `system_kg.cypher`
-4. `integration_relations.cypher`
+
+1. `kettle_kg.md`
+2. `grinder_kg.md`
+3. `system_kg.md`
+4. `integration_relations.md`
 5. `waretwin_robot_kg.md` → `waretwin_lift_kg.md` → `waretwin_conveyor_kg.md` → `waretwin_zone_kg.md` → `waretwin_perception_kg.md`
 6. `waretwin_system_kg.md`
 7. `waretwin_integration_relations.md`
 
 ## Modeling principle
-- Each DT file contains only `Agent`, `Goal`, `DELEGATED_TO`, and `REFINES`.
-- `Metric`, `Output`, and `Knowledge` are intentionally removed from the local KG files.
-- The system file also follows the same goal-only structure.
-- Cross-module relations are defined only in `integration_relations.cypher`.
-- System goals are satisfied by or depend on goals exported by the two DTs.
-- The two DTs can also have subgoal-level dependencies for coordination.
+
+- Model files contain agents, goals, `REFINES`, and explicit `DELEGATED_TO` responsibility. They also retain tasks and `OPERATIONALIZED_BY` where defined (including WareTwin order tasks).
+- WareTwin `REFINES` connects warehouse goals to component goal hierarchies. `OPERATIONALIZED_BY` connects leaf goals to executable tasks. The existing Safety branch is preserved.
+- Each WareTwin component agent has one directly assigned goal. LiftAgent is assigned `G_WT_CROSSFLOOR` (EnsureCrossFloorFlow), which refines into ProvideVerticalTransport and EnsureSafeGateOperation; RobotAgent is assigned `G_WT_TRANSPORT` (TransportGoods), which refines into ExecuteTransportTasks and MaintainBattery. The other component agents retain their component roots. Descendants inherit responsibility through the hierarchy, with tasks at the lowest level. `G_WT_ALLOC` is intentionally unassigned and operationalizes the four order tasks.
+- Agents retain the same `Agent.id` across files. System goals refine into component roots or branches. Robot is assigned only at TransportGoods, Lift only at EnsureCrossFloorFlow, and Conveyor at its component root.
+- `MaintainFleetEnergy` has no refined subgoals and is operationalized only by `CollectRobotEnergyInformation` (`T_FLEET_COLLECT_ENERGY`). This is a KG task declaration; its telemetry handler is outside the seed files.
+- Cross-model dependencies remain in the corresponding integration file: `integration_relations.md` for coffee and `waretwin_integration_relations.md` for WareTwin.
+
+## WareTwin views and seeding
+
+- **Hierarchy view:** start at the selected Root Goal ID, follow outgoing `REFINES`, and include `DELEGATED_TO` plus `OPERATIONALIZED_BY` tasks. The warehouse root includes component hierarchies. Stop at agents and tasks; do not expand `DEPENDS_ON` in this view.
+- **Integration view:** explicitly inspect `DEPENDS_ON` to see coordination between models or tasks. These edges remain stored even when hidden in the local view.
+- See [WareTwin mapping, system diagram and queries](waretwin_ditto_mapping.md) for all six roots, assignments and executable query examples.
+- For WareTwin alone, execute the five component files in step 5, then system, then integration. `seed_neo4j.py` executes both coffee and WareTwin in the full order above; it is not a WareTwin-only command.
+- Seed files have `.md` names but contain **plain Cypher with `//` comments**. The loader splits on semicolons and strips comment-only lines. Keep Markdown headings, code fences, Mermaid, and example queries in documentation files, not in seed files. Do not put semicolons in seed comments.
+- Re-running seeds uses `MERGE` and targeted cleanup of obsolete assignments and four obsolete system-to-component dependencies. It does not reset the database or delete nodes. Validate changes in a rolled-back transaction and verify Safety is unchanged before committing to an existing graph.
 
 ## Main exported service goals
-- Kettle: `kettle::G_K1 = ProvideHotWater`
-- Grinder: `grinder::G_G1 = ProvideGroundCoffee`
-- System: `system::G_S1 = ServeCoffee`
+
+- Kettle: `kettle::G_K1 = IncreaseWaterTemperature`
+- Grinder: `grinder::G_G_PROVIDE_GROUND_COFFEE = ProvideGroundCoffee`
+- System: `system::G_S_MAKE_COFFEE = MakeCoffee`

@@ -21,6 +21,7 @@ Usage (from the repository root, with a venv that has the ``neo4j`` driver):
 from __future__ import annotations
 
 import os
+import json
 import sys
 from pathlib import Path
 
@@ -96,6 +97,13 @@ def main() -> int:
     driver = GraphDatabase.driver(uri, auth=(user, password))
     try:
         driver.verify_connectivity()
+        old_ids = list(json.loads((base_dir.parent / "goal_model" / "ids.json").read_text()))
+        with driver.session(database=database) as session:
+            legacy = session.run(
+                "MATCH (g:Goal) WHERE g.id IN $ids RETURN collect(g.id) AS ids", ids=old_ids
+            ).single()["ids"]
+        if legacy:
+            raise SystemExit("Legacy Goal IDs found. Run cypher/migrate_goal_ids.py before seeding.")
         for filename in CYPHER_FILES:
             path = base_dir / filename
             if not path.exists():

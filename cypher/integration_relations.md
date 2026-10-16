@@ -11,7 +11,7 @@ SET r1.type = 'ACHIEVED',
 
 // GroundCoffeeAvailable phụ thuộc vào goal root của Grinder
 MATCH (gs12:Goal {id: 'G_S1_2'})
-MATCH (gr_root:Goal {id: 'G_GRINDER_ROOT'})
+MATCH (gr_root:Goal {id: 'G_G_PROVIDE_GROUND_COFFEE'})
 MERGE (gs12)-[r2:DEPENDS_ON]->(gr_root)
 SET r2.type = 'ACHIEVED',
     r2.description = 'Cà phê xay chỉ sẵn sàng khi grinder đạt được mục tiêu cung cấp cà phê xay';

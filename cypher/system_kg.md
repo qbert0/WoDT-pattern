@@ -10,7 +10,7 @@ SET as.name = 'SystemCoordinatorAgent';
 // =========================
 
 // Root
-MERGE (sys_root:Goal {id: 'G_SYSTEM_ROOT'})
+MERGE (sys_root:Goal {id: 'G_S_MAKE_COFFEE'})
 SET sys_root.name = 'MakeCoffee',
     sys_root.description = 'Một cốc cà phê sẵn sàng';
 
@@ -33,7 +33,7 @@ SET gs13.name = 'CoffeeReady',
 // =========================
 
 // MakeCoffee -> HotWaterAvailable + GroundCoffeeAvailable + CoffeeReady = AND
-MATCH (root:Goal {id:'G_SYSTEM_ROOT'}),
+MATCH (root:Goal {id:'G_S_MAKE_COFFEE'}),
       (g1:Goal {id:'G_S1_1'}),
       (g2:Goal {id:'G_S1_2'}),
       (g3:Goal {id:'G_S1_3'})
@@ -52,6 +52,6 @@ SET r3.type = 'AND';
 // =========================
 
 // Root goal delegated to system coordinator
-MATCH (root:Goal {id:'G_SYSTEM_ROOT'}),
+MATCH (root:Goal {id:'G_S_MAKE_COFFEE'}),
       (as:Agent {id:'A_SYSTEM'})
 MERGE (root)-[:DELEGATED_TO]->(as);

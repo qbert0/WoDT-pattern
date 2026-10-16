@@ -13,7 +13,7 @@ SET az.name = 'ZoneAgent',
 // =========================
 
 // Root goal
-MERGE (gz_root:Goal {id: 'G_ZONE_ROOT'})
+MERGE (gz_root:Goal {id: 'G_Z_MAINTAIN_SAFE_TRAFFIC'})
 SET gz_root.name = 'MaintainSafeTraffic',
     gz_root.description = 'Duy trì giao thông an toàn, phát hiện tắc nghẽn và cách ly khu vực nguy hiểm';
 
@@ -29,7 +29,7 @@ SET gz_block.name = 'BlockOnHazard',
 // =========================
 // GOAL REFINEMENT
 // =========================
-MATCH (root:Goal {id:'G_ZONE_ROOT'}),
+MATCH (root:Goal {id:'G_Z_MAINTAIN_SAFE_TRAFFIC'}),
       (gm:Goal {id:'G_Z_MONITOR'}),
       (gb:Goal {id:'G_Z_BLOCK'})
 MERGE (root)-[r1:REFINES]->(gm)
@@ -41,8 +41,14 @@ SET r2.type = 'AND';
 // =========================
 // DELEGATION
 // =========================
-MATCH (root:Goal {id:'G_ZONE_ROOT'}),
-      (az:Agent {id:'A_ZONE'})
+// Root goal chịu trách nhiệm điều phối zone. Các leaf goal không gán trực tiếp Agent.
+// REFINES chỉ nằm trong model này, không nối sang cây goal của model khác.
+// Agent dùng chung theo id với tham chiếu từ system (xem waretwin_ditto_mapping.md).
+MATCH (goal:Goal)-[r:DELEGATED_TO]->(az:Agent {id:'A_ZONE'})
+WHERE goal.id IN ['G_Z_MONITOR', 'G_Z_BLOCK']
+DELETE r;
+
+MATCH (root:Goal {id:'G_Z_MAINTAIN_SAFE_TRAFFIC'}), (az:Agent {id:'A_ZONE'})
 MERGE (root)-[:DELEGATED_TO]->(az);
 
 
