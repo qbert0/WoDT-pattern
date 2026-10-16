@@ -84,7 +84,7 @@ Mapping sang Ditto:
 | `water.properties.temperature` | `temperature` |
 | `water.properties.waterLevel` | `water_level` |
 | `water.properties.targetTemperature` | `target_temperature` |
-| `attributes.goalRootId` | `GOAL_ROOT_ID` |
+| `attributes.goalAgentId` | `GOAL_ROOT_ID` |
 
 ### Command và validation
 
@@ -177,7 +177,7 @@ Tạo hoặc cập nhật `smart_kettle_simulator/.env`. Không commit credentia
 
 ```dotenv
 THING_ID=smart-home:kettle-01
-GOAL_ROOT_ID=G_KETTLE_ROOT
+GOAL_ROOT_ID=G_K_CONTROL_THERMAL_OUTPUT
 SIMULATION_INTERVAL=2.0
 
 MQTT_HOST=34.143.166.45
@@ -421,7 +421,7 @@ Chạy Cypher bằng Neo4j Browser hoặc `cypher-shell`. Các goal chính:
 
 | Goal | Chức năng |
 | --- | --- |
-| `G_KETTLE_ROOT` | Goal gốc điều khiển thermal output |
+| `G_K_CONTROL_THERMAL_OUTPUT` | Goal gốc điều khiển thermal output |
 | `G_K1` | Tăng nhiệt độ nước |
 | `G_K1_1` | Đun tới nhiệt độ mục tiêu |
 | `G_K1_2` | Đảm bảo mức nước |
@@ -587,7 +587,7 @@ curl --fail-with-body -sS \
 Kiểm tra:
 
 ```text
-attributes.goalRootId = G_KETTLE_ROOT
+attributes.goalAgentId = G_K_CONTROL_THERMAL_OUTPUT
 features.power.properties.status = on
 features.water.properties.waterLevel = 80
 features.water.properties.targetTemperature = 95

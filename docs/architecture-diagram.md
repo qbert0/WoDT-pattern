@@ -31,8 +31,8 @@ flowchart TB
 
     subgraph Simulators ["⚙️ Simulator Layer"]
         direction LR
-        Kettle["Kettle Simulator\nThing: smart-home:kettle-01\nGoal: G_KETTLE_ROOT"]
-        Grinder["Grinder Simulator\nThing: smart-home:grinder-01\nGoal: G_GRINDER_ROOT"]
+        Kettle["Kettle Simulator\nThing: smart-home:kettle-01\nGoal: G_K_CONTROL_THERMAL_OUTPUT"]
+        Grinder["Grinder Simulator\nThing: smart-home:grinder-01\nGoal: G_G_PROVIDE_GROUND_COFFEE"]
     end
 
     subgraph Knowledge ["🧠 Knowledge Graph"]

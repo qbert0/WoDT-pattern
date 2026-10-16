@@ -200,7 +200,7 @@ cp smart_grinder_simulator/.env.example smart_grinder_simulator/.env
 | Biến | Vai trò | Giá trị mặc định trong code |
 | --- | --- | --- |
 | `THING_ID` | ID Thing dùng trong topic và Ditto | `smart-home:grinder-01` |
-| `GOAL_ROOT_ID` | Goal gốc được publish vào attribute | `G_GRINDER_ROOT` |
+| `GOAL_ROOT_ID` | Goal gốc được publish vào attribute | `G_G_PROVIDE_GROUND_COFFEE` |
 | `SIMULATION_INTERVAL` | Chu kỳ phát state, đơn vị giây | `2.0` |
 | `GRIND_DURATION_SECONDS` | Thời gian một lần xay | `60` |
 | `MQTT_HOST`, `MQTT_PORT` | Broker cho topic simulator ↔ twin | host cấu hình / `1883` |
@@ -312,7 +312,7 @@ curl --fail-with-body \
 {
   "policyId": "smart-home:grinder-policy",
   "attributes": {
-    "goalRootId": "G_GRINDER_ROOT"
+    "goalAgentId": "G_G_PROVIDE_GROUND_COFFEE"
   },
   "features": {
     "power": {
