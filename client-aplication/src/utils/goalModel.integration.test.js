@@ -27,7 +27,7 @@ describe.skipIf(process.env.RUN_GOAL_GRAPH_TESTS !== '1')('live goal graph queri
     ['G_P_PROVIDE_SITUATIONAL_AWARENESS', 3, 2, ['A_PERCEPTION']],
     ['G_K_CONTROL_THERMAL_OUTPUT', 5, 4, ['A_KETTLE']],
     ['G_G_PROVIDE_GROUND_COFFEE', 3, 2, ['A_GRINDER']],
-    ['G_WT_FULFILL_OPERATIONS', 32, 22, ['A_ROBOT', 'A_LIFT', 'A_CONVEYOR', 'A_ZONE', 'A_PERCEPTION', 'A_WARETWIN']],
+    ['G_WT_FULFILL_OPERATIONS', 5, 5, ['A_WARETWIN']],
   ])('%s includes only its hierarchy', async (root, goals, tasks, agents) => {
     const params = { anchorGroups: [goalAnchorCandidates(root)] };
     const rows = await query(GOAL_HIERARCHY_QUERY, params);
@@ -59,6 +59,31 @@ describe.skipIf(process.env.RUN_GOAL_GRAPH_TESTS !== '1')('live goal graph queri
       const path = row.get('dependency');
       expect(path.segments).toHaveLength(1);
       expect(path.segments[0].relationship.type).toBe('DEPENDS_ON');
+    }
+  });
+  it('shows the five delegated warehouse branches as dependencies and preserves their owners', async () => {
+    const rows = await query(GOAL_DEPENDENCIES_QUERY, {
+      anchorGroups: [['G_WT_FULFILL_OPERATIONS']], thingId: 'waretwin:warehouse',
+    });
+    const edges = rows.map(row => {
+      const path = row.get('dependency');
+      expect(path.segments[0].relationship.properties.type).toBe('ACHIEVED');
+      return `${path.start.properties.id}->${path.end.properties.id}`;
+    });
+    expect(edges.sort()).toEqual([
+      'G_WT_FULFILL_OPERATIONS->G_WT_TRANSPORT',
+      'G_WT_FULFILL_OPERATIONS->G_WT_CROSSFLOOR',
+      'G_WT_SAFETY->G_Z_MAINTAIN_SAFE_TRAFFIC',
+      'G_WT_SAFETY->G_P_PROVIDE_SITUATIONAL_AWARENESS',
+      'G_WT_INFRA->G_CV_PROVIDE_MATERIAL_FLOW',
+    ].sort());
+    for (const [goalId, agentId] of [
+      ['G_WT_SAFETY', 'A_WARETWIN'], ['G_WT_ALLOC', 'A_WARETWIN'],
+      ['G_WT_TRANSPORT', 'A_ROBOT'], ['G_LT_GATE', 'A_LIFT'],
+      ['G_CV_FEED', 'A_CONVEYOR'], ['G_Z_BLOCK', 'A_ZONE'], ['G_P_DETECT', 'A_PERCEPTION'],
+    ]) {
+      const owners = await query(GOAL_OWNER_QUERY, { goalId });
+      expect(owners[0].get('agentId')).toBe(agentId);
     }
   });
 });

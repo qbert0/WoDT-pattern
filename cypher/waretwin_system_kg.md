@@ -48,19 +48,13 @@ SET gw_alloc.name = 'AllocateOrders',
 
 // =========================
 // GOAL REFINEMENT
-// Phân rã từ goal cấp kho tới cây goal thành phần và cuối cùng tới Task.
+// REFINES chỉ phân rã trong cùng agent. Goal giao agent khác dùng DEPENDS_ON.
 // =========================
 MATCH (root:Goal {id:'G_WT_FULFILL_OPERATIONS'}),
-      (g1:Goal {id:'G_WT_TRANSPORT'}),
-      (g2:Goal {id:'G_WT_CROSSFLOOR'}),
       (g3:Goal {id:'G_WT_SAFETY'}),
       (g4:Goal {id:'G_WT_ENERGY'}),
       (g5:Goal {id:'G_WT_INFRA'}),
       (g6:Goal {id:'G_WT_ALLOC'})
-MERGE (root)-[r1:REFINES]->(g1)
-SET r1.type = 'AND'
-MERGE (root)-[r2:REFINES]->(g2)
-SET r2.type = 'AND'
 MERGE (root)-[r3:REFINES]->(g3)
 SET r3.type = 'AND'
 MERGE (root)-[r4:REFINES]->(g4)
@@ -70,26 +64,30 @@ SET r5.type = 'AND'
 MERGE (root)-[r6:REFINES]->(g6)
 SET r6.type = 'AND';
 
-// Giữ cấu trúc an toàn hiện có: Safety -> Zone/Perception -> goal con -> task.
-MATCH (safety:Goal {id:'G_WT_SAFETY'}),
-      (safeTraffic:Goal {id:'G_Z_MAINTAIN_SAFE_TRAFFIC'}),
-      (awareness:Goal {id:'G_P_PROVIDE_SITUATIONAL_AWARENESS'})
-MERGE (safety)-[r1:REFINES]->(safeTraffic)
-SET r1.type = 'AND'
-MERGE (safety)-[r2:REFINES]->(awareness)
-SET r2.type = 'AND';
-
-// Nối cây thành phần bằng REFINES. TransportGoods bao gồm duy trì pin của Robot.
+// Các goal con cùng agent vẫn dùng REFINES, kể cả khi nằm ở file khác.
 UNWIND [
   {parentId: 'G_WT_TRANSPORT', childId: 'G_R_EXECUTE_TRANSPORT'},
   {parentId: 'G_WT_CROSSFLOOR', childId: 'G_LT_PROVIDE_VERTICAL_TRANSPORT'},
   {parentId: 'G_WT_CROSSFLOOR', childId: 'G_LT_GATE'},
-  {parentId: 'G_WT_TRANSPORT', childId: 'G_R_ENERGY'},
-  {parentId: 'G_WT_INFRA', childId: 'G_CV_PROVIDE_MATERIAL_FLOW'}
+  {parentId: 'G_WT_TRANSPORT', childId: 'G_R_ENERGY'}
 ] AS refinement
 MATCH (parent:Goal {id: refinement.parentId}), (child:Goal {id: refinement.childId})
 MERGE (parent)-[r:REFINES]->(child)
 SET r.type = 'AND';
+
+// Ranh giới trách nhiệm: goal cha phụ thuộc goal được giao cho agent khác.
+UNWIND [
+  {parentId: 'G_WT_FULFILL_OPERATIONS', childId: 'G_WT_TRANSPORT'},
+  {parentId: 'G_WT_FULFILL_OPERATIONS', childId: 'G_WT_CROSSFLOOR'},
+  {parentId: 'G_WT_SAFETY', childId: 'G_Z_MAINTAIN_SAFE_TRAFFIC'},
+  {parentId: 'G_WT_SAFETY', childId: 'G_P_PROVIDE_SITUATIONAL_AWARENESS'},
+  {parentId: 'G_WT_INFRA', childId: 'G_CV_PROVIDE_MATERIAL_FLOW'}
+] AS dependency
+MATCH (parent:Goal {id: dependency.parentId}), (child:Goal {id: dependency.childId})
+MERGE (parent)-[:DEPENDS_ON {type: 'ACHIEVED'}]->(child)
+WITH parent, child
+OPTIONAL MATCH (parent)-[obsolete:REFINES]->(child)
+DELETE obsolete;
 
 
 // MaintainFleetEnergy chỉ thu thập thông tin, không chứa nhánh duy trì pin Robot.

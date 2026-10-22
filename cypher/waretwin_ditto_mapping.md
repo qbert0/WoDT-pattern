@@ -39,7 +39,7 @@ cho mỗi đơn hàng; bridge gán hai thuộc tính goal của task Thing bằn
 
 | Root | Nhánh chính | Task tiêu biểu |
 |---|---|---|
-| `G_WT_FULFILL_OPERATIONS` | TransportGoods / EnsureCrossFloorFlow / EnsureOperationalSafety / MaintainFleetEnergy / MaintainInfrastructureAvailability / AllocateOrders | `T_ORDER_PICK/TRANSPORT/REPLENISH/RETURN` |
+| `G_WT_FULFILL_OPERATIONS` | Nội bộ: Safety / FleetEnergy / Infrastructure / AllocateOrders; phụ thuộc Robot và Lift qua TransportGoods / EnsureCrossFloorFlow | `T_ORDER_PICK/TRANSPORT/REPLENISH/RETURN`, `T_FLEET_COLLECT_ENERGY` |
 | `G_WT_TRANSPORT` | ExecuteTransportTasks (TransportItem, CollisionFree) · MaintainBattery (Reach/Recharge) | `T_R_NAVIGATE/PICK/DROP/CHARGE/RECHARGE/AVOID` |
 | `G_WT_CROSSFLOOR` | ProvideVerticalTransport (Serve: Queue/Move, Recover) · EnsureSafeGateOperation | `T_LIFT_QUEUE/GATE/SERVE/RECOVER` |
 | `G_WT_ENERGY` | Thu thập thông tin năng lượng đội robot | `T_FLEET_COLLECT_ENERGY` |
@@ -51,16 +51,16 @@ cho mỗi đơn hàng; bridge gán hai thuộc tính goal của task Thing bằn
 
 | Quan hệ | Từ → Đến | Ghi chú |
 |---|---|---|
-| `REFINES {type: AND\|OR}` | Goal → Goal | Phân rã từ cấp kho tới cây thành phần và goal lá |
+| `REFINES {type: AND\|OR}` | Goal → Goal | Phân rã trong cùng agent phụ trách |
 | `DELEGATED_TO` | Goal gốc → Agent | Robot, Lift, Conveyor mỗi agent chỉ nhận một goal gốc |
 | `OPERATIONALIZED_BY` | Goal lá → Task | Task là cấp thực thi thấp nhất |
-| `DEPENDS_ON {type: ACHIEVED}` | Goal → Goal | Điều kiện phối hợp, không thay thế phân rã |
+| `DEPENDS_ON {type: ACHIEVED}` | Goal → Goal | Phụ thuộc goal giao agent khác hoặc điều kiện phối hợp |
 | `DEPENDS_ON {type: PARAMETER}` | Task → Task | Truyền tham số; Recharge → ReachCharger được biểu diễn ở mức Goal |
 
 Goal con kế thừa trách nhiệm từ goal gốc của model. Không nối mọi goal con trực tiếp
 vào Agent. Khi tìm agent của một goal, chọn tổ tiên được `DELEGATED_TO` gần nhất
-(theo số cạnh `REFINES`), không yêu cầu tổ tiên đó không có cha: root thành phần
-hiện nằm dưới goal cấp kho.
+(theo số cạnh `REFINES`). Không kế thừa trách nhiệm qua `DEPENDS_ON`.
+Ranh giới agent dùng dependency, kể cả khi goal con trước đây được biểu diễn bằng phân rã.
 
 ## Cây goal từ cấp kho
 
@@ -80,13 +80,14 @@ flowchart TB
     battery["MaintainBattery"]
     zoneRoot["MaintainSafeTraffic"]
     perceptionRoot["ProvideSituationalAwareness"]
-    root -->|AND| transport & crossfloor & safety & energy & infra & alloc
+    root -->|REFINES: AND| safety & energy & infra & alloc
+    root -.->|DEPENDS_ON: ACHIEVED| transport & crossfloor
     transport -->|AND| robotRoot & battery
     robotRoot -->|AND| transportItem["TransportItem"] & collisionFree["EnsureCollisionFreeOperation"]
     crossfloor -->|AND| liftRoot & gate
-    infra -->|AND| conveyorRoot
+    infra -.->|DEPENDS_ON: ACHIEVED| conveyorRoot
     energy -->|OPERATIONALIZED_BY| collectEnergy["Task: CollectRobotEnergyInformation"]
-    safety -->|AND| zoneRoot & perceptionRoot
+    safety -.->|DEPENDS_ON: ACHIEVED| zoneRoot & perceptionRoot
     perceptionRoot -->|AND| detectHazards["DetectHazards"]
     collisionFree -.->|DEPENDS_ON: ACHIEVED| detectHazards
     collisionFree -->|OPERATIONALIZED_BY| avoid["Task: AvoidObstacle"]
@@ -113,18 +114,19 @@ biểu diễn sự phối hợp này mà không thay đổi phân công hay cây
 Cạnh phụ thuộc được hiển thị riêng trong sơ đồ tổng quan; truy vấn hierarchy phía dưới
 vẫn chỉ lấy phân rã, phân công và task, không mở rộng `DEPENDS_ON`.
 
-| Goal cấp kho | Phân rã `REFINES AND` tới |
-|---|---|
-| `G_WT_TRANSPORT` | `G_R_EXECUTE_TRANSPORT`, `G_R_ENERGY` |
-| `G_WT_CROSSFLOOR` | `G_LT_PROVIDE_VERTICAL_TRANSPORT`, `G_LT_GATE` |
-| `G_WT_INFRA` | `G_CV_PROVIDE_MATERIAL_FLOW` |
-| `G_WT_SAFETY` | `G_Z_MAINTAIN_SAFE_TRAFFIC`, `G_P_PROVIDE_SITUATIONAL_AWARENESS` — giữ cấu trúc đang có trên Neo4j |
+| Goal cha | Quan hệ | Goal đích |
+|---|---|---|
+| `G_WT_FULFILL_OPERATIONS` | `DEPENDS_ON ACHIEVED` | `G_WT_TRANSPORT`, `G_WT_CROSSFLOOR` |
+| `G_WT_TRANSPORT` | `REFINES AND` | `G_R_EXECUTE_TRANSPORT`, `G_R_ENERGY` |
+| `G_WT_CROSSFLOOR` | `REFINES AND` | `G_LT_PROVIDE_VERTICAL_TRANSPORT`, `G_LT_GATE` |
+| `G_WT_INFRA` | `DEPENDS_ON ACHIEVED` | `G_CV_PROVIDE_MATERIAL_FLOW` |
+| `G_WT_SAFETY` | `DEPENDS_ON ACHIEVED` | `G_Z_MAINTAIN_SAFE_TRAFFIC`, `G_P_PROVIDE_SITUATIONAL_AWARENESS` |
 
 Chỉ `G_WT_TRANSPORT`, `G_WT_CROSSFLOOR`, `G_CV_PROVIDE_MATERIAL_FLOW` lần lượt giao trực tiếp cho
 `A_ROBOT`, `A_LIFT`, `A_CONVEYOR`. RobotAgent phụ trách cả vận chuyển và duy trì pin.
 LiftAgent chịu trách nhiệm toàn bộ nhánh liên tầng;
 `ProvideVerticalTransport` và `EnsureSafeGateOperation` không có phân công trực tiếp. `G_WT_ALLOC` vẫn không gán agent và nối tới bốn order task.
-Nhánh Safety giữ nguyên goal, phân công, task và quan hệ hiện có.
+Safety phụ thuộc Zone và Perception qua `DEPENDS_ON`; goal, phân công, task và phân rã nội bộ của hai agent này giữ nguyên.
 
 ## Phân cấp thành phần tới task
 
@@ -161,13 +163,13 @@ ProvideMaterialFlow [ConveyorAgent, AND]
 
 ## Truy vấn graph có task
 
-Trong Neo4j Browser, chạy riêng `:param rootGoalId => 'G_WT_FULFILL_OPERATIONS'` để xem toàn kho.
+Trong Neo4j Browser, chạy riêng `:param rootGoalId => 'G_WT_FULFILL_OPERATIONS'` để xem phạm vi điều phối kho.
 Thay root theo bảng để xem một model; các truy vấn chỉ đi theo hướng cha → con,
 không đi ngược từ Agent sang các goal khác và không mở rộng `DEPENDS_ON`.
 
 | Model | Root Goal ID | Goal / Agent / Task phân biệt |
 |---|---|---|
-| Toàn kho | `G_WT_FULFILL_OPERATIONS` | 32 / 6 / 22 |
+| Điều phối kho | `G_WT_FULFILL_OPERATIONS` | 5 / 1 / 5 |
 | Robot | `G_WT_TRANSPORT` | 10 / 1 / 6 |
 | Lift | `G_WT_CROSSFLOOR` | 7 / 1 / 4 |
 | Conveyor | `G_CV_PROVIDE_MATERIAL_FLOW` | 4 / 1 / 3 |
@@ -202,23 +204,27 @@ OPTIONAL MATCH (goal:Goal)-[:DELEGATED_TO]->(agent)
 RETURN agent.id AS agentId, collect(goal.id) AS assignedGoals;
 ```
 
-Mọi goal lá trong toàn kho phải có task; truy vấn sau phải trả **0 dòng**:
+Goal lá nội bộ phải có task hoặc phụ thuộc goal khác (ví dụ Safety, Infrastructure).
+Truy vấn sau phải trả **0 dòng**:
 
 ```cypher
 MATCH (:Goal {id:'G_WT_FULFILL_OPERATIONS'})-[:REFINES*0..]->(goal:Goal)
 WHERE NOT (goal)-[:REFINES]->(:Goal)
   AND NOT (goal)-[:OPERATIONALIZED_BY]->(:Task)
+  AND NOT (goal)-[:DEPENDS_ON {type:'ACHIEVED'}]->(:Goal)
 RETURN DISTINCT goal.id AS leafWithoutTask;
 ```
 
 Seed theo thứ tự component → system → integration. Các seed có xóa cạnh giao trực tiếp
-cũ trong ba model và ở cấp kho; integration bỏ bốn cạnh `DEPENDS_ON ACHIEVED` cũ.
+cũ trong ba model và ở cấp kho; integration bỏ ba cạnh `DEPENDS_ON ACHIEVED` cũ,
+giữ Infrastructure → Conveyor. System thay năm cạnh phân rã khác agent bằng dependency.
 Seed Robot chuyển nhánh pin khỏi `ExecuteTransportTasks`; system nối nhánh này
 vào `TransportGoods`, giao goal này cho RobotAgent và operationalize FleetEnergy
 bằng task thu thập thông tin. Seed Lift bỏ cạnh cũ `G_LT_SERVE → G_LT_GATE` và
 phân công cũ ở `G_LT_PROVIDE_VERTICAL_TRANSPORT`; seed system nối hai goal con trực tiếp và giao
 `G_WT_CROSSFLOOR` cho `A_LIFT`. Không xóa node hoặc task. Chạy lại không được thay đổi graph.
-Khi cập nhật graph đang có, chụp snapshot và đối chiếu toàn bộ nhánh Safety trước/sau.
+Khi cập nhật graph đang có, dùng [migration có snapshot và rollback](README_Goal_Dependency_Migration.md)
+để chỉ đổi các cạnh cần thiết và đối chiếu toàn bộ dữ liệu trước/sau.
 
 ## Nguồn dữ liệu
 

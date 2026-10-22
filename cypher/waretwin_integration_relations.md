@@ -1,17 +1,15 @@
 // =========================
 // WARETWIN INTEGRATION RELATIONS
 // =========================
-// Chạy sau các file *_kg.md. System nối cây thành phần bằng REFINES.
-// DEPENDS_ON chỉ biểu diễn điều kiện phối hợp và truyền tham số/thứ tự thực thi.
-// Giữ nguyên nhánh EnsureOperationalSafety và các phụ thuộc của Zone/Perception.
+// Chạy sau các file *_kg.md. REFINES chỉ nằm trong phạm vi cùng agent.
+// DEPENDS_ON nối goal thuộc agent khác và biểu diễn điều kiện phối hợp/truyền tham số.
 
-// Bỏ bốn phụ thuộc ACHIEVED cũ của system.
-// Transport/CrossFloor/Infra dùng REFINES, FleetEnergy dùng task thu thập thông tin.
+// Bỏ ba phụ thuộc ACHIEVED cũ. Infra -> Conveyor là khác agent nên phải giữ.
+// Transport/CrossFloor phân rã nội bộ, FleetEnergy dùng task thu thập thông tin.
 UNWIND [
   {parentId: 'G_WT_TRANSPORT', childId: 'G_R_EXECUTE_TRANSPORT'},
   {parentId: 'G_WT_CROSSFLOOR', childId: 'G_LT_PROVIDE_VERTICAL_TRANSPORT'},
-  {parentId: 'G_WT_ENERGY', childId: 'G_R_ENERGY'},
-  {parentId: 'G_WT_INFRA', childId: 'G_CV_PROVIDE_MATERIAL_FLOW'}
+  {parentId: 'G_WT_ENERGY', childId: 'G_R_ENERGY'}
 ] AS refinement
 MATCH (:Goal {id: refinement.parentId})-[obsolete:DEPENDS_ON]->(:Goal {id: refinement.childId})
 WHERE obsolete.type = 'ACHIEVED'
