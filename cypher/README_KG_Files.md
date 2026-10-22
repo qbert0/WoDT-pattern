@@ -43,6 +43,9 @@ Existing databases must run [Goal ID migration](README_Goal_ID_Migration.md) bef
 
 ## WareTwin views and seeding
 
+- Robot uses a small nested goal tree (`systemId`, `participants`, `goal`, `parameter_dependency`) in `../goal_model/waretwin_robot.json`, applied by `seed_neo4j.py` after topology seeding. Running the plain Cypher files alone does not load these properties. The loader also removes obsolete detailed Robot contract properties. See [Robot model documentation](../docs/waretwin-robot-goal-model.md).
+- Validate without Neo4j: `python3 cypher/seed_neo4j.py --validate-only`. Seed only WareTwin: `python3 cypher/seed_neo4j.py --waretwin-only` (from repository root, with the Neo4j driver installed).
+
 - **Hierarchy view:** start at the selected Root Goal ID, follow outgoing `REFINES`, and include `DELEGATED_TO` plus `OPERATIONALIZED_BY` tasks. The warehouse root includes component hierarchies. Stop at agents and tasks; do not expand `DEPENDS_ON` in this view.
 - **Integration view:** explicitly inspect `DEPENDS_ON` to see coordination between models or tasks. These edges remain stored even when hidden in the local view.
 - See [WareTwin mapping, system diagram and queries](waretwin_ditto_mapping.md) for all six roots, assignments and executable query examples.

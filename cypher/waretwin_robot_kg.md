@@ -1,5 +1,6 @@
 // =========================
 // WARETWIN ROBOT AGENT
+// Conditions and bindings: ../goal_model/waretwin_robot.json, applied by seed_neo4j.py.
 // =========================
 // Một Agent đại diện cho cả 20 AMR (waretwin:robot-R01..R20).
 MERGE (ar:Agent {id: 'A_ROBOT'})
@@ -124,7 +125,7 @@ SET tr2.name = 'Pick',
 MERGE (tr3:Task {id: 'T_R_DROP'})
 SET tr3.name = 'Drop',
     tr3.command = 'DROP',
-    tr3.inputParameters = '',
+    tr3.inputParameters = 'load_units: int',
     tr3.outputParameters = 'delivered: boolean';
 
 MERGE (tr4:Task {id: 'T_R_CHARGE'})

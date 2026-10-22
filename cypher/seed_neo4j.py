@@ -7,6 +7,8 @@ documented order:
     2. grinder_kg.md
     3. system_kg.md
     4. integration_relations.md
+    5. WareTwin component, system and integration files
+    6. Robot goal/dependency contract from goal_model/waretwin_robot.json
 
 Credentials are read from the process environment, falling back to the
 simulators' ``.env`` files (NEO4J_URI / NEO4J_USER / NEO4J_PASSWORD).
@@ -16,6 +18,8 @@ naming).
 Usage (from the repository root, with a venv that has the ``neo4j`` driver):
 
     smart_kettle_simulator/.venv/bin/python cypher/seed_neo4j.py
+    python cypher/seed_neo4j.py --validate-only
+    smart_kettle_simulator/.venv/bin/python cypher/seed_neo4j.py --waretwin-only
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from __future__ import annotations
 import os
 import json
 import sys
+import argparse
 from pathlib import Path
 
 try:
@@ -88,6 +93,18 @@ def load_config() -> tuple[str, str, str, str | None]:
 
 
 def main() -> int:
+    from robot_contract import apply_contract, counts, load_contract
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--waretwin-only", action="store_true", help="Seed only WareTwin topology and Robot contract")
+    parser.add_argument("--validate-only", action="store_true", help="Validate Robot contract without connecting to Neo4j")
+    args = parser.parse_args()
+    contract = load_contract()
+    if args.validate_only:
+        goals, deps = counts(contract)
+        print(f"[validate] Robot: {goals} goals, {deps} dependencies")
+        return 0
+
     from neo4j import GraphDatabase
 
     uri, user, password, database = load_config()
@@ -105,15 +122,20 @@ def main() -> int:
         if legacy:
             raise SystemExit("Legacy Goal IDs found. Run cypher/migrate_goal_ids.py before seeding.")
         for filename in CYPHER_FILES:
+            if args.waretwin_only and not filename.startswith("waretwin_"):
+                continue
             path = base_dir / filename
             if not path.exists():
-                print(f"[seed] Skipping missing file: {filename}")
-                continue
+                raise FileNotFoundError(path)
             statements = list(iter_statements(path.read_text(encoding="utf-8")))
             print(f"[seed] {filename}: {len(statements)} statements")
             with driver.session(database=database) as session:
                 for statement in statements:
                     session.run(statement)
+
+        with driver.session(database=database) as session:
+            session.execute_write(apply_contract, contract)
+        print("[seed] Applied Robot goal conditions and dependency bindings")
 
         with driver.session(database=database) as session:
             counts = session.run(

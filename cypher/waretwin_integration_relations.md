@@ -49,27 +49,37 @@ SET r.type = 'ACHIEVED',
 
 
 // =========================
-// TASK -> TASK (EXECUTION)
+// RECHARGE -> REACH CHARGER
 // =========================
-// Recharge cần đã tới trạm sạc
-MATCH (tr_recharge:Task {id:'T_R_RECHARGE'}), (tr_reach:Task {id:'T_R_CHARGE'})
-MERGE (tr_recharge)-[r:DEPENDS_ON]->(tr_reach)
-SET r.type = 'EXECUTION',
+// Biểu diễn một lần ở mức goal, cùng dạng depends_on trong model Robot.
+MATCH (:Task {id:'T_R_RECHARGE'})-[obsolete:DEPENDS_ON]->(:Task {id:'T_R_CHARGE'})
+WHERE obsolete.type = 'EXECUTION'
+DELETE obsolete;
+
+MATCH (recharge:Goal {id:'G_R_RECHARGE'}), (reach:Goal {id:'G_R_REACH'})
+MERGE (recharge)-[r:DEPENDS_ON {type: 'ACHIEVED'}]->(reach)
+SET r.type = 'ACHIEVED',
     r.description = 'Chỉ sạc được sau khi đã cập bến trạm sạc';
 
 
 // =========================
 // TASK -> TASK (PARAMETER)
 // =========================
-// target_floor của Navigate lấy từ floor do Lift cấp
+// Bỏ ánh xạ ngược: tầng thực tế của Lift không phải tầng đích yêu cầu của Navigate.
+MATCH (:Task {id:'T_R_NAVIGATE'})-[obsolete:DEPENDS_ON]->(:Task {id:'T_LIFT_SERVE'})
+WHERE obsolete.type = 'PARAMETER'
+DELETE obsolete;
+
+// Lift nhận tầng đích từ REQUEST Navigate, không đợi Navigate hoàn thành.
 MATCH (tr_nav:Task {id:'T_R_NAVIGATE'}), (tl_serve:Task {id:'T_LIFT_SERVE'})
-MERGE (tr_nav)-[r:DEPENDS_ON]->(tl_serve)
+MERGE (tl_serve)-[r:DEPENDS_ON {type: 'PARAMETER'}]->(tr_nav)
 SET r.type = 'PARAMETER',
-    r.sourceParameter = 'floor',
+    r.sourceParameter = 'target_floor',
     r.targetParameter = 'target_floor',
+    r.sourcePhase = 'REQUEST',
     r.factor = 1.0,
     r.offset = 0.0,
-    r.description = 'Tầng đích khi định tuyến lấy từ tầng mà thang máy phục vụ';
+    r.description = 'Lift nhận tầng đích từ yêu cầu Navigate cùng robot và lift request';
 
 // load_units của Drop lấy từ Pick (giữ nguyên tải khi giao)
 MATCH (tr_drop:Task {id:'T_R_DROP'}), (tr_pick:Task {id:'T_R_PICK'})

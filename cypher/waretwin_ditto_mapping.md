@@ -1,6 +1,11 @@
 # WareTwin DT → Goal Graph mapping
 
 Ánh xạ Thing trên Eclipse Ditto với goal knowledge graph trong Neo4j.
+
+Robot dùng cây goal đơn giản với `clause`, `depends_on` và `parameter_dependency`, xem
+[Robot goal model](../docs/waretwin-robot-goal-model.md). Loader `seed_neo4j.py`
+nạp contract từ `goal_model/waretwin_robot.json` sau topology Cypher.
+
 Bridge WareTwin hiện ghi `attributes.goalRootId` và `attributes.goalAgentId` cùng
 một **Goal ID** theo bảng bên dưới. Tên `goalAgentId` được giữ để tương thích;
 đợt đổi ID này chưa chuyển giá trị sang `A_*` hoặc thay đổi uniqueness của Ambassador.
@@ -50,7 +55,7 @@ cho mỗi đơn hàng; bridge gán hai thuộc tính goal của task Thing bằn
 | `DELEGATED_TO` | Goal gốc → Agent | Robot, Lift, Conveyor mỗi agent chỉ nhận một goal gốc |
 | `OPERATIONALIZED_BY` | Goal lá → Task | Task là cấp thực thi thấp nhất |
 | `DEPENDS_ON {type: ACHIEVED}` | Goal → Goal | Điều kiện phối hợp, không thay thế phân rã |
-| `DEPENDS_ON {type: EXECUTION\|PARAMETER}` | Task → Task | Thứ tự thực thi / truyền tham số |
+| `DEPENDS_ON {type: PARAMETER}` | Task → Task | Truyền tham số; Recharge → ReachCharger được biểu diễn ở mức Goal |
 
 Goal con kế thừa trách nhiệm từ goal gốc của model. Không nối mọi goal con trực tiếp
 vào Agent. Khi tìm agent của một goal, chọn tổ tiên được `DELEGATED_TO` gần nhất

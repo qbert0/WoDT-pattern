@@ -1,0 +1,116 @@
+{
+  "systemId": "WareTwinRobot",
+  "participants": ["RobotAgent", "WarehouseCoordinatorAgent", "LiftAgent", "PerceptionAgent"],
+  "goal": {
+    "id": "G_WT_TRANSPORT",
+    "description": "Vận chuyển hàng hóa an toàn và duy trì đủ năng lượng",
+    "type": "Achieve",
+    "refinement": "AND",
+    "clause": "G_R_EXECUTE_TRANSPORT.status == satisfied AND G_R_ENERGY.status == satisfied",
+    "depends_on": {
+      "actor": "WarehouseCoordinatorAgent",
+      "goal": "G_WT_ALLOC",
+      "clause": "Task.assigned_robot == RobotAgent.id",
+      "binding": {"task_id": "RobotAgent.task_id", "robot_id": "RobotAgent.id"}
+    },
+    "children": [
+      {
+        "id": "G_R_EXECUTE_TRANSPORT",
+        "description": "Hoàn thành vận chuyển và bảo đảm an toàn",
+        "type": "Achieve",
+        "refinement": "AND",
+        "clause": "G_R_TRANSPORT.status == satisfied AND G_R_SAFE.status == satisfied",
+        "children": [
+          {
+            "id": "G_R_TRANSPORT",
+            "description": "Di chuyển, lấy hàng và giao hàng",
+            "type": "Achieve",
+            "refinement": "AND",
+            "clause": "G_R_NAVIGATE.status == satisfied AND G_R_PICK.status == satisfied AND G_R_DROP.status == satisfied",
+            "children": [
+              {
+                "id": "G_R_NAVIGATE",
+                "description": "Đến đúng vị trí và tầng đích",
+                "type": "Achieve",
+                "clause": "RobotAgent.floor == Task.target_floor AND RobotAgent.distance_to_target <= Task.position_tolerance_m",
+                "depends_on": {
+                  "actor": "LiftAgent",
+                  "goal": "G_LT_PROVIDE_VERTICAL_TRANSPORT",
+                  "when": "Task.source_floor != Task.target_floor",
+                  "clause": "LiftAgent.transport_complete == true AND LiftAgent.floor == Task.target_floor",
+                  "binding": {"robot_id": "RobotAgent.id", "source_floor": "Task.source_floor", "target_floor": "Task.target_floor"}
+                }
+              },
+              {
+                "id": "G_R_PICK",
+                "description": "Lấy đủ hàng của nhiệm vụ hiện tại",
+                "type": "Achieve",
+                "clause": "Task.assigned_robot == RobotAgent.id AND RobotAgent.picked_units == Task.load_units AND RobotAgent.load <= RobotAgent.capacity"
+              },
+              {
+                "id": "G_R_DROP",
+                "description": "Giao đủ hàng và hoàn thành nhiệm vụ",
+                "type": "Achieve",
+                "clause": "Task.assigned_robot == RobotAgent.id AND Task.status == COMPLETED AND RobotAgent.delivered_units == Task.load_units AND RobotAgent.load == 0"
+              }
+            ]
+          },
+          {
+            "id": "G_R_SAFE",
+            "description": "Không va chạm và dừng khi có vật cản quá gần",
+            "type": "Maintain",
+            "clause": "RobotAgent.collision_free == true AND RobotAgent.perception_active == true AND RobotAgent.velocity <= RobotAgent.max_speed AND (RobotAgent.ahead_m > RobotAgent.stop_distance_m OR RobotAgent.velocity == 0)",
+            "depends_on": {
+              "actor": "PerceptionAgent",
+              "goal": "G_P_DETECT",
+              "clause": "PerceptionAgent.observation_valid == true AND PerceptionAgent.zone == RobotAgent.zone",
+              "binding": {"zone_id": "RobotAgent.zone"}
+            }
+          }
+        ]
+      },
+      {
+        "id": "G_R_ENERGY",
+        "description": "Duy trì pin tối thiểu 10%, đi sạc khi cần",
+        "type": "Maintain",
+        "refinement": "AND",
+        "clause": "RobotAgent.battery >= 10",
+        "children": [
+          {
+            "id": "G_R_REACH",
+            "description": "Đến trạm sạc được chọn",
+            "type": "Achieve",
+            "when": "RobotAgent.needs_charge == true",
+            "clause": "RobotAgent.at_charger == true"
+          },
+          {
+            "id": "G_R_RECHARGE",
+            "description": "Sạc pin tới 95%",
+            "type": "Achieve",
+            "when": "RobotAgent.needs_charge == true",
+            "clause": "RobotAgent.at_charger == true AND RobotAgent.battery >= 95",
+            "depends_on": {
+              "actor": "RobotAgent",
+              "goal": "G_R_REACH",
+              "clause": "G_R_REACH.status == satisfied AND RobotAgent.at_charger == true",
+              "binding": {"charger_id": "RobotAgent.charger_id"}
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "parameter_dependency": [
+    {
+      "from": "T_R_PICK.load_units",
+      "to": "T_R_DROP.load_units",
+      "rule": "T_R_DROP.load_units = T_R_PICK.load_units"
+    },
+    {
+      "from": "T_R_NAVIGATE.target_floor",
+      "to": "T_LIFT_SERVE.target_floor",
+      "when": "Task.source_floor != Task.target_floor",
+      "rule": "T_LIFT_SERVE.target_floor = T_R_NAVIGATE.target_floor"
+    }
+  ]
+}
