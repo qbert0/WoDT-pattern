@@ -1,3 +1,4 @@
+import { GOAL_TYPES, requireGoalType } from '../utils/goalTypes';
 import React, { useState, useRef } from 'react';
 import neo4j from 'neo4j-driver';
 import KGGraph from './KGGraph';
@@ -18,7 +19,7 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
     label: 'Goal',
     name: '',
     description: '',
-    type: 'achieve',
+    type: 'Achieve',
     command: '',
     properties: ''
   });
@@ -81,13 +82,21 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
       }
     }
 
+    if (nodeData.label === 'Goal') {
+      try {
+        props.type = requireGoalType(props.type);
+      } catch (err) {
+        return showStatus('danger', err.message);
+      }
+    }
+
     const query = `CREATE (n:${nodeData.label} $props) RETURN n`;
     await runQuery(query, { props });
     setNodeData({
       label: nodeData.label,
       name: '',
       description: '',
-      type: 'achieve',
+      type: 'Achieve',
       command: '',
       properties: ''
     });
@@ -258,9 +267,7 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
                   value={nodeData.type}
                   onChange={(e) => setNodeData({ ...nodeData, type: e.target.value })}
                 >
-                  <option value="achieve">Achieve (Đạt được)</option>
-                  <option value="maintain">Maintain (Duy trì)</option>
-                  <option value="avoid">Avoid (Tránh)</option>
+                  {GOAL_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
                 </select>
               </div>
             )}

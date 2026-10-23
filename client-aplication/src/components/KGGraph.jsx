@@ -1,9 +1,13 @@
+import { GOAL_TYPES, normalizeGoalType, requireGoalType } from '../utils/goalTypes';
 import { getThingGoalAnchor, goalAnchorCandidates, GOAL_HIERARCHY_QUERY, GOAL_DEPENDENCIES_QUERY } from '../../../goal_model/goals';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import neo4j from 'neo4j-driver';
 import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD } from '../config';
 
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, character => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[character]));
 
 let driver;
 try {
@@ -30,7 +34,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
     label: 'Goal',
     name: '',
     description: '',
-    type: 'achieve',
+    type: 'Achieve',
     command: '',
     createRelation: false,
     targetNodeId: '',
@@ -62,7 +66,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
   const [editNodeData, setEditNodeData] = useState({
     name: '',
     description: '',
-    type: 'achieve',
+    type: 'Achieve',
     command: ''
   });
   const [editLinkType, setEditLinkType] = useState('REFINES');
@@ -81,7 +85,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         setEditNodeData({
           name: selectedElement.data.name || '',
           description: props.description || '',
-          type: props.type || 'achieve',
+          type: normalizeGoalType(props.type) || '',
           command: props.command || ''
         });
       } else if (selectedElement.type === 'link') {
@@ -118,7 +122,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         description: nodeData.description
       };
       if (nodeData.label === 'Goal') {
-        props.type = nodeData.type;
+        props.type = requireGoalType(nodeData.type);
       }
       if (nodeData.label === 'Task' && nodeData.command) {
         props.command = nodeData.command;
@@ -176,7 +180,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         label: 'Goal',
         name: '',
         description: '',
-        type: 'achieve',
+        type: 'Achieve',
         command: '',
         createRelation: false,
         targetNodeId: '',
@@ -345,7 +349,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         description: editNodeData.description
       };
       if (selectedElement.data.type === 'Goal') {
-        props.type = editNodeData.type;
+        props.type = requireGoalType(editNodeData.type);
       }
       if (selectedElement.data.type === 'Task' && editNodeData.command) {
         props.command = editNodeData.command;
@@ -662,11 +666,12 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
           setShowControlPanel(true);
         }}
         nodeLabel={(node) => {
-          const props = Object.entries(node.properties)
-            .map(([k, v]) => `<div><b>${k}:</b> ${v}</div>`)
+          const props = Object.entries(node.properties || {})
+            .filter(([key]) => key !== 'precondition' && key !== 'postcondition')
+            .map(([k, v]) => `<div><b>${escapeHtml(k)}:</b> ${escapeHtml(v)}</div>`)
             .join('');
           return `<div style="background: rgba(15, 23, 42, 0.9); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 11px;">
-                        <div style="color: ${getNodeColor(node)}; font-weight: bold; margin-bottom: 4px;">${node.type}: ${node.name}</div>
+                        <div style="color: ${getNodeColor(node)}; font-weight: bold; margin-bottom: 4px;">${escapeHtml(node.type)}: ${escapeHtml(node.name)}</div>
                         ${props}
                     </div>`;
         }}
@@ -902,8 +907,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                     onChange={(e) => setNodeData({ ...nodeData, type: e.target.value })}
                     style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
                   >
-                    <option value="achieve">achieve</option>
-                    <option value="maintain">maintain</option>
+                    {GOAL_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
                   </select>
                 </div>
               )}
@@ -1293,6 +1297,25 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   </div>
                 </div>
               ) : selectedElement.type === 'node' ? (
+                <>
+                <section aria-label="Chi tiết node" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                  <div style={{ fontWeight: '600', color: '#60a5fa', marginBottom: '8px' }}>
+                    Chi tiết node
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    {selectedElement.data.type}: {selectedElement.data.name}
+                  </div>
+                  <dl style={{ margin: 0, fontSize: '0.8rem' }}>
+                    {Object.entries(selectedElement.data.properties || {}).map(([key, value]) => (
+                      <div key={key} style={{ marginBottom: '8px' }}>
+                        <dt style={{ color: '#94a3b8', fontWeight: '600' }}>{key}</dt>
+                        <dd style={{ margin: '2px 0 0', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                          {String(value ?? '')}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
                 <form onSubmit={handleUpdateNode} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ fontWeight: '600', color: '#60a5fa', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
                     Đang sửa Node ({selectedElement.data.type})
@@ -1323,8 +1346,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                         onChange={(e) => setEditNodeData({ ...editNodeData, type: e.target.value })}
                         style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
                       >
-                        <option value="achieve">achieve</option>
-                        <option value="maintain">maintain</option>
+                        <option value="" disabled>Chọn loại mục tiêu</option>
+                        {GOAL_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
                       </select>
                     </div>
                   )}
@@ -1367,6 +1390,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                     Hủy chọn
                   </button>
                 </form>
+                </>
               ) : (
                 <form onSubmit={handleUpdateLink} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div style={{ fontWeight: '600', color: '#a78bfa', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
