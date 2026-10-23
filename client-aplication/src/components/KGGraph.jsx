@@ -629,14 +629,6 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', borderRadius: '8px' }}>
-      <button
-        className="btn"
-        aria-pressed={showDependencies}
-        onClick={() => setShowDependencies(value => !value)}
-        style={{ position: 'absolute', bottom: 28, left: 10, zIndex: 2, fontSize: '0.75rem' }}
-      >
-        {showDependencies ? 'Ẩn quan hệ phối hợp' : 'Xem quan hệ phối hợp'}
-      </button>
       <ForceGraph2D
         graphData={data}
         width={width}
@@ -1529,8 +1521,19 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         </div>
       )}
 
+      {/* Keep the dependency toggle and legend in one stack to avoid overlap. */}
+      <div style={{ position: 'absolute', bottom: '10px', left: '10px', maxWidth: 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', zIndex: 2, pointerEvents: 'none' }}>
+        <button
+          type="button"
+          className="btn"
+          aria-pressed={showDependencies}
+          onClick={() => setShowDependencies(value => !value)}
+          style={{ fontSize: '0.75rem', maxWidth: '100%', whiteSpace: 'normal', pointerEvents: 'auto' }}
+        >
+          {showDependencies ? 'Ẩn quan hệ phối hợp' : 'Xem quan hệ phối hợp'}
+        </button>
       {/* Legend */}
-      <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.5)', padding: '8px', borderRadius: '4px', fontSize: '10px', display: 'flex', flexDirection: 'column', gap: '4px', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(4px)', pointerEvents: 'none' }}>
+      <div style={{ background: 'rgba(0,0,0,0.5)', padding: '8px', borderRadius: '4px', fontSize: '10px', display: 'flex', flexDirection: 'column', gap: '4px', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(4px)', pointerEvents: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f87171' }}></div>
           <span>Agent</span>
@@ -1547,6 +1550,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#a78bfa' }}></div>
           <span>DT / Kettle</span>
         </div>
+      </div>
       </div>
 
       <div style={{ position: 'absolute', top: '10px', right: '10px', fontSize: '9px', color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }}>

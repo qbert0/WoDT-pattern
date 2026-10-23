@@ -1,5 +1,6 @@
 import { getThingGoalAnchor } from '../../../goal_model/goals';
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import KGGraph from './KGGraph';
@@ -45,7 +46,38 @@ const Module2DTStatus = () => {
   const [graphRefreshKey, setGraphRefreshKey] = useState(0);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showFullGraphModal, setShowFullGraphModal] = useState(false);
+  const fullGraphDialogRef = useRef(null);
+  const fullGraphContainerRef = useRef(null);
+  const [fullGraphSize, setFullGraphSize] = useState({ width: 0, height: 0 });
   const [componentGoalAgentIds, setComponentGoalAgentIds] = useState([]);
+
+  useEffect(() => {
+    if (!showFullGraphModal) return;
+    const dialog = fullGraphDialogRef.current;
+    const container = fullGraphContainerRef.current;
+    if (!dialog || !container) return;
+
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    dialog.showModal();
+    document.body.style.overflow = 'hidden';
+
+    const updateSize = () => {
+      const { clientWidth: width, clientHeight: height } = container;
+      setFullGraphSize(previous => previous.width === width && previous.height === height
+        ? previous : { width, height });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, [showFullGraphModal]);
 
   useEffect(() => {
     if (!thing) return;
@@ -460,15 +492,22 @@ const Module2DTStatus = () => {
         </div>
       )}
 
-      {showFullGraphModal && (
-        <div className="modal-overlay" onClick={() => setShowFullGraphModal(false)}>
-          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '90vw', width: '1000px' }}>
+      {showFullGraphModal && createPortal(
+          <dialog
+            ref={fullGraphDialogRef}
+            className="full-graph-dialog"
+            aria-labelledby="full-graph-title"
+            onCancel={(event) => {
+              event.preventDefault();
+              setShowFullGraphModal(false);
+            }}
+          >
             <div className="modal-header">
-              <h2 className="modal-title">Biểu đồ mục tiêu đầy đủ - {thingId}</h2>
-              <button className="close-btn" onClick={() => setShowFullGraphModal(false)} style={{ fontSize: '1.5rem', background: 'transparent' }}>&times;</button>
+              <h2 id="full-graph-title" className="modal-title">Biểu đồ mục tiêu đầy đủ - {thingId}</h2>
+              <button type="button" className="close-btn" autoFocus aria-label="Đóng đồ thị toàn màn hình" onClick={() => setShowFullGraphModal(false)} style={{ fontSize: '1.5rem', background: 'transparent' }}>&times;</button>
             </div>
-            <div style={{ height: '70vh', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', overflow: 'hidden' }}>
-              {(() => {
+            <div ref={fullGraphContainerRef} className="full-graph-canvas">
+              {fullGraphSize.width > 0 && fullGraphSize.height > 0 && (() => {
                 const isLargeDT = !!thing?.features?.components?.properties?.thingIds?.length;
                 return (
                   <KGGraph 
@@ -478,14 +517,14 @@ const Module2DTStatus = () => {
                     goalAgentId={thing?.attributes?.goalAgentId}
                     componentGoalAgentIds={componentGoalAgentIds}
                     isLarge={isLargeDT} 
-                    width={1000} 
-                    height={window.innerHeight * 0.7} 
+                    width={fullGraphSize.width}
+                    height={fullGraphSize.height}
                   />
                 );
               })()}
             </div>
-          </div>
-        </div>
+          </dialog>,
+          document.body
       )}
     </div>
   );
