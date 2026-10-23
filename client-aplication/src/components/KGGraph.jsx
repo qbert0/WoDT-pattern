@@ -1525,7 +1525,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
       <div style={{ position: 'absolute', bottom: '10px', left: '10px', maxWidth: 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', zIndex: 2, pointerEvents: 'none' }}>
         <button
           type="button"
-          className="btn"
+          className="btn graph-dependencies-toggle"
           aria-pressed={showDependencies}
           onClick={() => setShowDependencies(value => !value)}
           style={{ fontSize: '0.75rem', maxWidth: '100%', whiteSpace: 'normal', pointerEvents: 'auto' }}
