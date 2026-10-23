@@ -5,6 +5,36 @@ import ForceGraph2D from 'react-force-graph-2d';
 import neo4j from 'neo4j-driver';
 import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD } from '../config';
 
+const NODE_COLORS = {
+  Agent: '#f87171',
+  Goal: '#60a5fa',
+  Task: '#34d399',
+  Action: '#34d399',
+  DT: '#a78bfa',
+  Capability: '#fbbf24',
+  Kettle: '#a78bfa',
+};
+const getNodeColor = (node) => NODE_COLORS[node.type] || '#94a3b8';
+const NODE_SHAPES = {
+  circle: { path: 'M 6 0 A 6 6 0 1 0 -6 0 A 6 6 0 1 0 6 0 Z', radius: 6, height: 6 },
+  capsule: { path: 'M -6 -6 L 6 -6 A 6 6 0 0 1 6 6 L -6 6 A 6 6 0 0 1 -6 -6 Z', radius: 12, height: 6 },
+  hexagon: { path: 'M 12 0 L 8 7 L -8 7 L -12 0 L -8 -7 L 8 -7 Z', radius: 12, height: 7 },
+};
+const getNodeShape = (node) => NODE_SHAPES[
+  node.type === 'Goal' ? 'capsule' : ['Task', 'Action'].includes(node.type) ? 'hexagon' : 'circle'
+];
+// Share the same outline between the visible node, pointer area and legend.
+const nodePaths = new Map();
+const fillNodeShape = (node, ctx, color) => {
+  const { path } = getNodeShape(node);
+  if (!nodePaths.has(path)) nodePaths.set(path, new Path2D(path));
+  ctx.save();
+  ctx.translate(node.x, node.y);
+  ctx.fillStyle = color;
+  ctx.fill(nodePaths.get(path));
+  ctx.restore();
+};
+
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, character => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[character]));
@@ -539,9 +569,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
           nodesMap.set(node.identity.toString(), {
             id: node.identity.toString(),
             name: props.name || props.id || node.labels[0] || 'Unknown',
-            type: node.labels[0] || 'Node',
+            type: ['Agent', 'Goal', 'Task', 'Action'].find(label => node.labels.includes(label)) || node.labels[0] || 'Node',
             properties: props,
-            val: node.labels[0] === 'Agent' ? 15 : (node.labels[0] === 'Goal' ? 12 : 8),
           });
         };
         records.forEach(record => {
@@ -589,19 +618,6 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
       isMounted = false;
     };
   }, [thingId, goalRootId, goalAgentId, componentGoalAgentIds, isLarge, localRefreshKey, showDependencies]);
-
-  const getNodeColor = (node) => {
-    switch (node.type) {
-      case 'Agent': return '#f87171';
-      case 'Goal': return '#60a5fa';
-      case 'Task':
-      case 'Action': return '#34d399';
-      case 'DT': return '#a78bfa';
-      case 'Capability': return '#fbbf24';
-      case 'Kettle': return '#a78bfa';
-      default: return '#94a3b8';
-    }
-  };
 
   if (loading) {
     return (
@@ -669,6 +685,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         }}
         nodeColor={getNodeColor}
         nodeRelSize={6}
+        nodeVal={(node) => (getNodeShape(node).radius / 6) ** 2}
+        nodePointerAreaPaint={(node, color, ctx) => fillNodeShape(node, ctx, color)}
         linkDirectionalArrowLength={3.5}
         linkDirectionalArrowRelPos={1}
         linkCurvature={0.25}
@@ -722,27 +740,17 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         nodeCanvasObject={(node, ctx, globalScale) => {
           const label = node.name;
           const fontSize = 12 / globalScale;
+          ctx.save();
           ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
-
-
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI, false);
-          ctx.fillStyle = getNodeColor(node);
-          ctx.fill();
-
-
-          ctx.shadowColor = getNodeColor(node);
-          ctx.shadowBlur = 10;
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-
+          fillNodeShape(node, ctx, getNodeColor(node));
 
           if (globalScale > 1.5) {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = '#cbd5e1';
-            ctx.fillText(label, node.x, node.y + 10);
+            ctx.fillText(label, node.x, node.y + getNodeShape(node).height + (fontSize / 2) + 3 / globalScale);
           }
+          ctx.restore();
         }}
       />
 
@@ -1534,22 +1542,19 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         </button>
       {/* Legend */}
       <div style={{ background: 'rgba(0,0,0,0.5)', padding: '8px', borderRadius: '4px', fontSize: '10px', display: 'flex', flexDirection: 'column', gap: '4px', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(4px)', pointerEvents: 'none' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f87171' }}></div>
-          <span>Agent</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#60a5fa' }}></div>
-          <span>Goal</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#34d399' }}></div>
-          <span>Task / Action</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#a78bfa' }}></div>
-          <span>DT / Kettle</span>
-        </div>
+        {[
+          { type: 'Agent', label: 'Agent — tròn' },
+          { type: 'Goal', label: 'Goal — viên nhộng' },
+          { type: 'Task', label: 'Task / Action — lục giác' },
+          { type: 'DT', label: 'DT / Kettle — tròn' },
+        ].map(item => (
+          <div key={item.type} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <svg width="24" height="16" viewBox="-13 -8 26 16" aria-hidden="true">
+              <path d={getNodeShape(item).path} fill={getNodeColor(item)} />
+            </svg>
+            <span>{item.label}</span>
+          </div>
+        ))}
       </div>
       </div>
 
