@@ -58,7 +58,7 @@
           {
             "id": "G_R_SAFE",
             "description": "Không va chạm và dừng khi có vật cản quá gần",
-            "type": "Maintain",
+            "type": "Avoid",
             "clause": "RobotAgent.collision_free == true AND RobotAgent.perception_active == true AND RobotAgent.velocity <= RobotAgent.max_speed AND (RobotAgent.ahead_m > RobotAgent.stop_distance_m OR RobotAgent.velocity == 0)",
             "depends_on": {
               "actor": "PerceptionAgent",

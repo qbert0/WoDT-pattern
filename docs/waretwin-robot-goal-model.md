@@ -38,7 +38,7 @@ và 6 dependency (4 goal dependency, 2 parameter dependency).
 | `participants` | Các Agent tham gia |
 | `goal` | Cây mục tiêu |
 | `id`, `description` | ID và mô tả mục tiêu |
-| `type` | `Achieve`: đạt một kết quả; `Maintain`: duy trì điều kiện |
+| `type` | `Achieve`: đạt một kết quả; `Maintain`: duy trì điều kiện; `Avoid`: ngăn trạng thái nguy hiểm |
 | `clause` | Điều kiện đạt mục tiêu hoặc đáp ứng dependency |
 | `refinement`, `children` | Phân rã AND/OR và các goal con |
 | `when` | Điều kiện áp dụng, chỉ khai báo khi cần |
@@ -68,12 +68,15 @@ TransportGoods
 
 - Navigate: đúng tầng, khoảng cách tới đích trong tolerance của nhiệm vụ.
 - Pick/Drop: đúng robot, lấy/giao đủ hàng của nhiệm vụ.
-- Safety: không va chạm, perception bật, tuân thủ giới hạn tốc độ và khoảng dừng.
+- Safety (`Avoid`): không va chạm, perception bật, tuân thủ giới hạn tốc độ và khoảng dừng.
+  `clause` luôn là điều kiện thỏa mãn, kể cả với `Avoid`: biểu thức đúng nghĩa là
+  đang đáp ứng yêu cầu an toàn, không phải đã xảy ra nguy hiểm. Không đảo phủ định clause.
 - Energy: pin tối thiểu 10%; khi cần sạc thì tới charger và sạc đến 95%.
 - Nhánh không thỏa `when` không bắt buộc trong AND. Pin bình thường không đòi robot
   phải đi sạc. Goal Energy vẫn kiểm tra trực tiếp ngưỡng 10% khi đang phục hồi.
 - Kết quả Achieve được giữ cho lần thực hiện hiện tại: giao hàng xong không làm
-  mất kết quả đã lấy hàng. Maintain được kiểm tra trong suốt quá trình vận chuyển.
+  mất kết quả đã lấy hàng. Maintain và Avoid được kiểm tra trong suốt quá trình vận chuyển.
+  Đây là ngữ nghĩa khai báo; runtime evaluator chưa được tích hợp.
 
 ## Quy ước dữ liệu
 

@@ -57,8 +57,46 @@ changes, backs up the graph, and replaces only the affected relationships in one
 - Seed files have `.md` names but contain **plain Cypher with `//` comments**. The loader splits on semicolons and strips comment-only lines. Keep Markdown headings, code fences, Mermaid, and example queries in documentation files, not in seed files. Do not put semicolons in seed comments.
 - Re-running seeds uses `MERGE` and targeted cleanup of obsolete assignments, three obsolete system-to-component dependencies, and five cross-agent refinements. It does not reset the database or delete nodes. Safety depends on Zone and Perception; their internal goals, tasks and assignments are preserved. Use the dependency migration for existing data to preserve other properties instead of replaying all seeds.
 
+## WareTwin task Pre/Post
+
+All 22 WareTwin tasks declare exactly two condition properties: `precondition`
+and `postcondition`, in their six `waretwin_*_kg.md` files. Full seeding loads
+these properties directly. Values use logical specification expressions (`AND`,
+`OR`, comparisons, and documented predicates), not natural-language sentences.
+They remain strings and do not enforce runtime guards. To update existing tasks independently, see
+[Task Pre/Post conditions](README_Task_Conditions.md).
+
 ## Main exported service goals
 
 - Kettle: `kettle::G_K1 = IncreaseWaterTemperature`
 - Grinder: `grinder::G_G_PROVIDE_GROUND_COFFEE = ProvideGroundCoffee`
 - System: `system::G_S_MAKE_COFFEE = MakeCoffee`
+
+## WareTwin goal types
+
+32 WareTwin goals use canonical `Goal.type`: **20 Achieve, 9 Maintain, 3 Avoid**.
+`Achieve` completes a request/event; `Maintain` sustains a service/condition;
+`Avoid` prevents an unsafe state. `clause` remains a satisfaction condition for
+all three types. Relationship types (`AND`/`OR`, `ACHIEVED`/`PARAMETER`) are separate.
+
+- Continuous services: cross-floor flow, conveyor flow/running, situational
+  awareness, zone monitoring/traffic, battery/fleet energy and infrastructure
+  availability are `Maintain`.
+- Robot collision prevention, warehouse safety and lift gate safety are `Avoid`.
+- Other goals are `Achieve`: hazard detection is per frame, telemetry per report,
+  vertical transport per request, zone blocking and fault reporting per event.
+
+The six WareTwin Cypher files declare types, and the Robot JSON must agree.
+To update an existing graph without reseeding topology, run from the repo root:
+
+```bash
+smart_kettle_simulator/.venv/bin/python cypher/migrate_goal_types.py
+smart_kettle_simulator/.venv/bin/python cypher/migrate_goal_types.py --apply --journal /absolute/private/path/goal-types.json
+smart_kettle_simulator/.venv/bin/python cypher/migrate_goal_types.py --rollback --journal /absolute/private/path/goal-types.json
+```
+
+Preview is read-only. Apply/rollback use one transaction, lock the scoped goals,
+reject missing/duplicate IDs or graph changes since the journal, and verify that
+only the intended goal types changed. The private journal contains a graph
+backup (no connection credentials); keep it outside git. Repeating apply with
+the same journal is a no-op; after rollback use a new journal to apply again.

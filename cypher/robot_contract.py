@@ -63,7 +63,7 @@ def validate_contract(model, cypher_dir=ROOT / "cypher"):
         if goal["id"] in seen or goal["id"] not in declarations["Goal"]:
             raise ValueError(f"Duplicate or unknown goal: {goal['id']}")
         seen.add(goal["id"])
-        if goal["type"] not in ("Achieve", "Maintain") or not goal["clause"] or not goal["description"]:
+        if goal["type"] not in ("Achieve", "Maintain", "Avoid") or not goal["clause"] or not goal["description"]:
             raise ValueError(f"Invalid goal: {goal['id']}")
         if goal.get("children") and goal.get("refinement") not in ("AND", "OR"):
             raise ValueError(f"Missing refinement: {goal['id']}")
