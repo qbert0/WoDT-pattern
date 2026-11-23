@@ -1,3 +1,4 @@
+import Modal from './Modal';
 import React, { useState, useEffect } from 'react';
 import { DITTO_API_BASE_URL as BASE_URL } from '../config';
 
@@ -9,8 +10,8 @@ const headers = (extra = {}) => ({
 });
 
 const STATUS_COLOR = (s) => ({
-  open: 'var(--success)', closed: 'var(--danger)', failed: '#f59e0b'
-})[s] ?? 'var(--text-muted)';
+  open: '#168267', closed: '#ba374b', failed: '#a36a16'
+})[s] ?? '#68758a';
 
 // ---------- Connection Detail/Info Viewer ----------
 const ConnectionInfoPanel = ({ connId, onClose }) => {
@@ -43,56 +44,56 @@ const ConnectionInfoPanel = ({ connId, onClose }) => {
     } catch (e) { setCmdResult(`Error: ${e.message}`); }
   };
 
-  const TABS = [['status', 'Status'], ['metrics', 'Metrics'], ['logs', 'Logs']];
+  const TABS = [['status', 'Trạng thái'], ['metrics', 'Chỉ số'], ['logs', 'Nhật ký']];
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content glass-panel" style={{ background: 'var(--bg-dark)', maxWidth: 680 }}>
+    <Modal title="Chi tiết kết nối" onClose={onClose}>
+      <div className="modal-content glass-panel" style={{ background: 'var(--bg-panel)', maxWidth: 680 }}>
         <div className="modal-header">
-          <h3 className="modal-title">Connection: {connId}</h3>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <h3 className="modal-title">Kết nối: {connId}</h3>
+          <button aria-label="Đóng hộp thoại" className="close-btn" onClick={onClose}>✕</button>
         </div>
 
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
           {TABS.map(([key, label]) => (
             <button key={key} className="btn" onClick={() => loadTab(key)}
-              style={{ padding: '6px 14px', fontSize: '0.85rem', background: tab === key ? 'var(--primary)' : 'rgba(255,255,255,0.08)', color: tab === key ? '#fff' : 'var(--text-muted)' }}>
+              style={{ padding: '6px 14px', fontSize: '0.85rem', background: tab === key ? 'var(--primary)' : 'rgba(232, 238, 248, 0.4)', color: tab === key ? '#fff' : 'var(--text-muted)' }}>
               {label}
             </button>
           ))}
         </div>
 
         {/* Content */}
-        {loading ? <p style={{ color: 'var(--text-muted)' }}>Loading…</p> : (
-          <pre style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px', padding: '1rem', maxHeight: '280px', overflow: 'auto', color: '#c7d2fe', fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>
+        {loading ? <p style={{ color: 'var(--text-muted)' }}>Đang tải kết nối…</p> : (
+          <pre style={{ background: 'rgba(229, 235, 245, 0.42)', borderRadius: '8px', padding: '1rem', maxHeight: '280px', overflow: 'auto', color: '#4b5d75', fontSize: '0.8rem', whiteSpace: 'pre-wrap' }}>
             {JSON.stringify(data, null, 2)}
           </pre>
         )}
 
         {/* Send Command */}
         <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-          <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Send Command</div>
+          <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'none' }}>Gửi lệnh kết nối</div>
           {cmdResult && <div style={{ color: 'var(--success)', marginBottom: '0.5rem', fontSize: '0.85rem' }}>{cmdResult}</div>}
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <select value={cmdInput} onChange={e => setCmdInput(e.target.value)} style={{ flex: 1 }}>
+            <select aria-label="Lệnh kết nối" value={cmdInput} onChange={e => setCmdInput(e.target.value)} style={{ flex: 1 }}>
               <option value="open">OPEN</option>
               <option value="close">CLOSE</option>
               <option value="enableConnectionLogs">ENABLE LOGS</option>
               <option value="disableConnectionLogs">DISABLE LOGS</option>
               <option value="resetConnectionMetrics">RESET METRICS</option>
             </select>
-            <button className="btn btn-primary" onClick={sendCommand}>Send</button>
+            <button className="btn btn-primary" onClick={sendCommand}>Gửi lệnh</button>
           </div>
         </div>
 
-        <button className="btn" style={{ marginTop: '1rem', background: 'rgba(255,255,255,0.1)', width: '100%' }} onClick={onClose}>Close</button>
+        <button className="btn" style={{ marginTop: '1rem', background: 'var(--surface-subtle)', width: '100%' }} onClick={onClose}>Đóng</button>
       </div>
-    </div>
+    </Modal>
   );
 };
 
-// ---------- Create/Edit Connection Modal ----------
+// ---------- Create/Chỉnh sửa kết nối Modal ----------
 const ConnectionForm = ({ existing, onClose, onSaved }) => {
   const isEdit = !!existing;
   const [form, setForm] = useState(existing ? {
@@ -138,28 +139,28 @@ const ConnectionForm = ({ existing, onClose, onSaved }) => {
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content glass-panel" style={{ background: 'var(--bg-dark)', maxWidth: 620 }}>
+    <Modal title="Thiết lập kết nối" onClose={onClose}>
+      <div className="modal-content glass-panel" style={{ background: 'var(--bg-panel)', maxWidth: 620 }}>
         <div className="modal-header">
-          <h3 className="modal-title">{isEdit ? 'Edit Connection' : 'Create Connection'}</h3>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <h3 className="modal-title">{isEdit ? 'Chỉnh sửa kết nối' : 'Tạo kết nối'}</h3>
+          <button aria-label="Đóng hộp thoại" className="close-btn" onClick={onClose}>✕</button>
         </div>
         {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem' }}>{error}</div>}
         <form onSubmit={submit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Connection ID</label>
-              <input name="id" value={form.id} onChange={h} disabled={isEdit} required />
+              <label htmlFor="connectionmanager-field-1">Connection ID</label>
+              <input id="connectionmanager-field-1" name="id" value={form.id} onChange={h} disabled={isEdit} required />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Name</label>
-              <input name="name" value={form.name} onChange={h} required />
+              <label htmlFor="connectionmanager-field-2">Tên kết nối</label>
+              <input id="connectionmanager-field-2" name="name" value={form.name} onChange={h} required />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', marginTop: '1rem' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>Type</label>
-              <select name="connectionType" value={form.connectionType} onChange={h}>
+              <label htmlFor="connectionmanager-field-3">Giao thức</label>
+              <select id="connectionmanager-field-3" name="connectionType" value={form.connectionType} onChange={h}>
                 <option value="mqtt">MQTT 3.1.1</option>
                 <option value="mqtt-5">MQTT 5</option>
                 <option value="amqp-10">AMQP 1.0</option>
@@ -169,27 +170,27 @@ const ConnectionForm = ({ existing, onClose, onSaved }) => {
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>URI</label>
-              <input name="uri" value={form.uri} onChange={h} placeholder="tcp://host:port" required />
+              <label htmlFor="connectionmanager-field-4">URI</label>
+              <input id="connectionmanager-field-4" name="uri" value={form.uri} onChange={h} placeholder="tcp://host:port" required />
             </div>
           </div>
           <div style={{ marginTop: '1rem' }}>
             <div className="form-group">
-              <label>Sources <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>(JSON array)</span></label>
-              <textarea name="sources" value={form.sources} onChange={h} rows={5} style={{ fontFamily: 'monospace' }} />
+              <label htmlFor="connectionmanager-field-5">Sources <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>(JSON array)</span></label>
+              <textarea id="connectionmanager-field-5" name="sources" value={form.sources} onChange={h} rows={5} style={{ fontFamily: 'monospace' }} />
             </div>
             <div className="form-group">
-              <label>Targets <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>(JSON array)</span></label>
-              <textarea name="targets" value={form.targets} onChange={h} rows={5} style={{ fontFamily: 'monospace' }} />
+              <label htmlFor="connectionmanager-field-6">Targets <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>(JSON array)</span></label>
+              <textarea id="connectionmanager-field-6" name="targets" value={form.targets} onChange={h} rows={5} style={{ fontFamily: 'monospace' }} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-            <button type="button" className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)' }} onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-success" style={{ flex: 2 }}>{isEdit ? 'Save' : 'Create'}</button>
+            <button type="button" className="btn" style={{ flex: 1, background: 'var(--surface-subtle)' }} onClick={onClose}>Hủy</button>
+            <button type="submit" className="btn btn-success" style={{ flex: 2 }}>{isEdit ? 'Lưu thay đổi' : 'Tạo kết nối'}</button>
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -227,28 +228,23 @@ const ConnectionManager = () => {
 
   return (
     <div>
-      <div className="header">
-        <h1>Connections</h1>
+      <div className="page-heading">
+        <div><h1>Kết nối</h1><p>Quản lý luồng dữ liệu và lệnh điều khiển giữa thiết bị với bản sao số.</p></div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={fetchConnections}>↻ Refresh</button>
-          <button className="btn btn-primary" onClick={() => setFormPanel('create')}>+ Create Connection</button>
+          <button className="btn" style={{ background: 'var(--surface-subtle)' }} onClick={fetchConnections}>↻ Tải lại</button>
+          <button className="btn btn-primary" onClick={() => setFormPanel('create')}>+ Tạo kết nối</button>
         </div>
       </div>
 
-      {/* Architecture note */}
-      <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: '8px', padding: '0.65rem 1rem', marginBottom: '1.25rem', color: '#93c5fd', fontSize: '0.82rem' }}>
-        ℹ️ <b>/api/2/connections</b> được gửi qua ambassador; devops credentials chỉ được cấu hình ở backend.
-      </div>
-
-      {error && <div style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid var(--danger)', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem' }}>{error}</div>}
+      {error && <div style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid var(--danger)', color: '#ba374b', padding: '1rem', borderRadius: '8px', marginBottom: '1.25rem' }}>{error}</div>}
 
       {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading…</div>
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Đang tải kết nối…</div>
       ) : (
         <div className="card-grid">
           {connections.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-              No Connections found. Create your first integration.
+              Chưa có kết nối. Tạo kết nối để bắt đầu nhận dữ liệu thiết bị.
             </div>
           ) : connections.map(conn => (
             <div key={conn.id} className="dt-card glass-panel" style={{ borderLeft: `4px solid ${STATUS_COLOR(conn.connectionStatus)}` }}>
@@ -277,9 +273,9 @@ const ConnectionManager = () => {
               </div>
 
               <div className="dt-actions" style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
-                <button className="btn" style={{ flex: 1, fontSize: '0.82rem', background: 'rgba(99,102,241,0.2)', color: '#a5b4fc' }} onClick={() => setInfoPanel(conn.id)}>Status/Logs</button>
-                <button className="btn btn-primary" style={{ flex: 1, fontSize: '0.82rem' }} onClick={() => setFormPanel(conn)}>Edit</button>
-                <button className="btn btn-danger" style={{ flex: 1, fontSize: '0.82rem' }} onClick={() => deleteConnection(conn.id)}>Delete</button>
+                <button className="btn" style={{ flex: 1, fontSize: '0.82rem', background: 'rgba(99,102,241,0.2)', color: '#315be8' }} onClick={() => setInfoPanel(conn.id)}>Trạng thái / Nhật ký</button>
+                <button className="btn btn-primary" style={{ flex: 1, fontSize: '0.82rem' }} onClick={() => setFormPanel(conn)}>Chỉnh sửa</button>
+                <button className="btn btn-danger" style={{ flex: 1, fontSize: '0.82rem' }} onClick={() => deleteConnection(conn.id)}>Xóa</button>
               </div>
             </div>
           ))}

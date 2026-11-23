@@ -1,3 +1,4 @@
+import Modal from './Modal';
 import { getThingGoalAnchor } from '../../../goal_model/goals';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -6,6 +7,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import KGGraph from './KGGraph';
 import ObjectController from './ObjectController';
 import TargetGraphSetup from './TargetGraphSetup';
+import { ArrowLeft, Layers, Database, Send, Maximize2, Code } from 'lucide-react';
+import { getTwinStatus, STATUS_LABELS } from '../utils/twinPresentation';
 import {
   DITTO_API_BASE_URL as BASE_URL,
   STATUS_POLL_INTERVAL_MS,
@@ -25,13 +28,18 @@ const Module2DTStatus = () => {
   const [thing, setThing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [section, setSection] = useState('overview');
+  const [dataView, setDataView] = useState('visual');
+  const [featureHistory, setFeatureHistory] = useState({});
 
-  // Panel B: Attributes
+  // Thuộc tính
   const [attributesJson, setAttributesJson] = useState('{}');
   const [editingAttributes, setEditingAttributes] = useState(false);
+  const editingAttributesRef = useRef(false);
+  editingAttributesRef.current = editingAttributes;
   const [attrError, setAttrError] = useState(null);
 
-  // Panel C: Features
+  // Tính năng & dữ liệu
   const [activeFeature, setActiveFeature] = useState(null);
 
   // Panel D: Messages
@@ -118,11 +126,17 @@ const Module2DTStatus = () => {
   }, [thing]);
 
   useEffect(() => {
-    if (graphContainerRef.current) {
-      const { clientWidth, clientHeight } = graphContainerRef.current;
-      setGraphSize({ width: clientWidth, height: clientHeight });
-    }
-  }, [thing]); // Recalculate when data loads
+    const container = graphContainerRef.current;
+    if (!container || section !== 'overview') return;
+    const updateSize = () => {
+      const { clientWidth: width, clientHeight: height } = container;
+      if (width && height) setGraphSize(previous => previous.width === width && previous.height === height ? previous : { width, height });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [Boolean(thing), section]);
 
   // Fetch Thing Data
   const fetchThing = async () => {
@@ -131,7 +145,19 @@ const Module2DTStatus = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status} - ${res.statusText}`);
       const data = await res.json();
       setThing(data);
-      if (!editingAttributes) {
+      const time = new Date().toLocaleTimeString('vi-VN');
+      setFeatureHistory(previous => {
+        const next = { ...previous };
+        for (const [feature, featureData] of Object.entries(data.features || {})) {
+          for (const [property, value] of Object.entries(featureData.properties || {})) {
+            if (typeof value !== 'number') continue;
+            const key = `${feature}/${property}`;
+            next[key] = [...(previous[key] || []), { time, value }].slice(-30);
+          }
+        }
+        return next;
+      });
+      if (!editingAttributesRef.current) {
         setAttributesJson(JSON.stringify(data.attributes || {}, null, 2));
       }
       setError(null);
@@ -143,6 +169,7 @@ const Module2DTStatus = () => {
   };
 
   useEffect(() => {
+    setFeatureHistory({});
     fetchThing();
     // Setup Auto-polling for real-time updates
     const interval = setInterval(() => {
@@ -186,7 +213,7 @@ const Module2DTStatus = () => {
       });
       if (!res.ok && res.status !== 202) throw new Error(res.statusText);
 
-      setMsgStatus({ type: 'success', text: 'Đã gửi thành công!' });
+      setMsgStatus({ type: 'success', text: 'Lệnh đã được chuyển tiếp. Theo dõi dữ liệu thiết bị để xác nhận kết quả.' });
       setMessagesLog(prev => [{
         time: new Date().toLocaleTimeString(),
         dir: 'OUT',
@@ -211,11 +238,7 @@ const Module2DTStatus = () => {
       setMessagePayload('{}');
     }
 
-    // Scroll to messages panel
-    const msgPanel = document.querySelector('.panel-d');
-    if (msgPanel) {
-      msgPanel.scrollIntoView({ behavior: 'smooth' });
-    }
+    setSection('messages');
   };
 
   if (loading && !thing) {
@@ -226,42 +249,41 @@ const Module2DTStatus = () => {
     return <div style={{ padding: '3rem', color: 'var(--danger)' }}>Lỗi: {error}</div>;
   }
 
-  // Helper to generate mock chart data for numerical properties
-  const generateMockChartData = (currentValue) => {
-    if (typeof currentValue !== 'number') return [];
-    // Generate 10 points fluctuating around current value
-    return Array.from({ length: 10 }).map((_, i) => ({
-      time: `T-${10 - i}`,
-      value: currentValue + (Math.random() * 4 - 2)
-    }));
-  };
+  const status = getTwinStatus(thing);
 
   return (
     <div className="module2-container">
-      <div className="header" style={{ marginBottom: '1.5rem' }}>
-        <div>
-          <h1 style={{ display: 'inline-block', marginRight: '1rem' }}>CHI TIẾT DIGITAL TWIN</h1>
-          <span className="dt-namespace" style={{ fontSize: '1rem' }}>{thingId}</span>
-        </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => navigate('/')}>
-            ← Quay lại danh sách
-          </button>
-        </div>
+      <div className="page-heading detail-heading">
+        <div className="detail-heading-main"><button className="icon-btn" aria-label="Quay lại danh sách bản sao số" onClick={() => navigate('/')}><ArrowLeft size={18} /></button><div><h1>{thing.attributes?.label || thingId.split(':').slice(1).join(':') || thingId}</h1><p>{thingId}</p></div></div>
+        <span className={`status-badge ${status}`}><span className={`status-dot ${status}`} />{STATUS_LABELS[status]}</span>
       </div>
+      {error && <div className="notice notice-error" role="alert">Không cập nhật được dữ liệu: {error}. Đang hiển thị dữ liệu gần nhất.</div>}
+      <div className="detail-tabs" role="group" aria-label="Nội dung bản sao số">
+        {[['overview', 'Tổng quan', Layers], ['data', 'Dữ liệu thiết bị', Database], ['messages', 'Gửi lệnh', Send]].map(([key, label, Icon]) => <button key={key} className={section === key ? 'is-selected' : ''} aria-pressed={section === key} onClick={() => setSection(key)}><Icon size={16} />{label}</button>)}
+      </div>
+
+      {section === 'data' && (
+        <div className="device-data-toolbar">
+          <p>{dataView === 'json' ? 'Toàn bộ dữ liệu hiện tại đã đồng bộ của bản sao số.' : 'Theo dõi thuộc tính và các giá trị của thiết bị.'}</p>
+          <div className="device-data-view" role="group" aria-label="Cách hiển thị dữ liệu thiết bị">
+            <button type="button" className={dataView === 'visual' ? 'is-selected' : ''} aria-pressed={dataView === 'visual'} onClick={() => setDataView('visual')}><Layers size={15} />Trực quan</button>
+            <button type="button" className={dataView === 'json' ? 'is-selected' : ''} aria-pressed={dataView === 'json'} onClick={() => setDataView('json')}><Code size={16} />JSON</button>
+          </div>
+        </div>
+      )}
 
       <div className="dashboard-grid">
         {/* Panel A: Identifier Info */}
-        <div className="glass-panel panel-a" style={{ padding: '1.5rem' }}>
-          <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Panel A: Thông tin định danh</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.9rem' }}>
+        <div className="glass-panel panel-a" hidden={section !== 'overview'} style={{ padding: '1.5rem' }}>
+          <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Thông tin bản sao số</h3>
+          <div className="detail-properties">
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Thing ID:</span>
               <div style={{ wordBreak: 'break-all' }}>{thing.thingId}</div>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Policy ID:</span>
-              <div style={{ wordBreak: 'break-all' }}>{thing.policyId}</div>
+              <div style={{ wordBreak: 'break-all' }}>{thing.policyId || 'Chưa thiết lập'}</div>
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
               <span style={{ color: 'var(--text-muted)' }}>Definition (WoT TD URL):</span>
@@ -269,30 +291,26 @@ const Module2DTStatus = () => {
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Tạo lúc:</span>
-              <div>{thing._created ? new Date(thing._created).toLocaleString() : 'N/A'}</div>
+              <div>{thing._created ? new Date(thing._created).toLocaleString('vi-VN') : 'Chưa có dữ liệu'}</div>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Cập nhật cuối:</span>
-              <div>{thing._modified ? new Date(thing._modified).toLocaleString() : 'N/A'}</div>
+              <div>{thing._modified ? new Date(thing._modified).toLocaleString('vi-VN') : 'Chưa có dữ liệu'}</div>
             </div>
             <div>
-              <span style={{ color: 'var(--text-muted)' }}>Revision:</span>
+              <span style={{ color: 'var(--text-muted)' }}>Phiên bản:</span>
               <div>{thing._revision || 0}</div>
             </div>
           </div>
         </div>
 
         {/* Panel E: KG Status */}
-        <div className="glass-panel panel-e" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+        <div className="glass-panel panel-e" hidden={section !== 'overview'} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <h3 style={{ margin: 0 }}>Panel E: Trạng thái Knowledge Graph</h3>
-              <span style={{ fontSize: '0.6rem', padding: '1px 5px', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                <span style={{ width: '4px', height: '4px', background: '#ef4444', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></span>
-                LIVE
-              </span>
+              <h3 style={{ margin: 0 }}>Đồ thị mục tiêu</h3>
             </div>
-            <button className="btn" style={{ padding: '2px 8px', fontSize: '0.7rem', background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }} onClick={() => setShowFullGraphModal(true)}>Đầy đủ →</button>
+            <button className="btn" style={{ padding: '2px 8px', fontSize: '0.7rem', background: 'rgba(59,130,246,0.2)', color: '#315be8' }} onClick={() => setShowFullGraphModal(true)}><Maximize2 size={12} /> Mở rộng</button>
           </div>
           <div ref={graphContainerRef} className="graph-container">
             {(() => {
@@ -314,7 +332,7 @@ const Module2DTStatus = () => {
         </div>
 
 
-        <div className="glass-panel panel-f" style={{ gridColumn: 'span 6', height: '400px' }}>
+        <div className="glass-panel panel-f" hidden={section !== 'overview'}>
           <ObjectController 
             thingId={thingId} 
             goalRootId={thing?.attributes?.goalRootId}
@@ -325,15 +343,24 @@ const Module2DTStatus = () => {
         </div>
 
 
-        <div className="glass-panel panel-b" style={{ padding: '1.5rem' }}>
+        <section className="glass-panel device-json-panel" hidden={section !== 'data' || dataView !== 'json'} aria-labelledby="device-json-title">
+          <div className="device-json-heading">
+            <h3 id="device-json-title">Dữ liệu JSON hiện tại</h3>
+            <span>Chỉ xem</span>
+          </div>
+          {editingAttributes && <p className="device-json-note">Các thay đổi thuộc tính chưa lưu chưa xuất hiện trong dữ liệu này.</p>}
+          <pre className="device-json-code" tabIndex={0} aria-label="Toàn bộ dữ liệu thiết bị dạng JSON"><code>{JSON.stringify(thing, null, 2)}</code></pre>
+        </section>
+
+        <div className="glass-panel panel-b" hidden={section !== 'data' || dataView !== 'visual'} style={{ padding: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-            <h3 style={{ margin: 0 }}>Panel B: Attributes</h3>
+            <h3 style={{ margin: 0 }}>Thuộc tính</h3>
             {!editingAttributes ? (
-              <button className="btn" style={{ padding: '2px 8px', fontSize: '0.8rem', background: 'var(--primary)' }} onClick={() => setEditingAttributes(true)}>Sửa</button>
+              <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '0.75rem' }} onClick={() => setEditingAttributes(true)}>Sửa</button>
             ) : (
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn" style={{ padding: '2px 8px', fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)' }} onClick={() => { setEditingAttributes(false); setAttributesJson(JSON.stringify(thing.attributes || {}, null, 2)); setAttrError(null); }}>Hủy</button>
-                <button className="btn" style={{ padding: '2px 8px', fontSize: '0.8rem', background: 'var(--success)' }} onClick={handleSaveAttributes}>Lưu</button>
+                <button className="btn" style={{ padding: '2px 8px', fontSize: '0.8rem', background: 'var(--surface-subtle)' }} onClick={() => { setEditingAttributes(false); setAttributesJson(JSON.stringify(thing.attributes || {}, null, 2)); setAttrError(null); }}>Hủy</button>
+                <button className="btn btn-success" style={{ padding: '4px 10px', fontSize: '0.75rem' }} onClick={handleSaveAttributes}>Lưu</button>
               </div>
             )}
           </div>
@@ -341,20 +368,22 @@ const Module2DTStatus = () => {
 
           {editingAttributes ? (
             <textarea
+              aria-label="Nội dung thuộc tính JSON"
               value={attributesJson}
               onChange={(e) => setAttributesJson(e.target.value)}
               style={{ width: '100%', height: '250px', fontFamily: 'monospace', fontSize: '0.85rem' }}
             />
           ) : (
-            <pre style={{ width: '100%', height: '250px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '4px', fontSize: '0.85rem', color: '#a78bfa' }}>
+            <pre style={{ width: '100%', height: '250px', overflowY: 'auto', background: 'rgba(229, 235, 245, 0.42)', padding: '1rem', borderRadius: '4px', fontSize: '0.85rem', color: '#7160ae' }}>
               {JSON.stringify(thing.attributes || {}, null, 2)}
             </pre>
           )}
         </div>
 
 
-        <div className="glass-panel panel-c" style={{ padding: '1.5rem' }}>
-          <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Panel C: Features</h3>
+        <div className="glass-panel panel-c" hidden={section !== 'data' || dataView !== 'visual'} style={{ padding: '1.5rem' }}>
+          <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Tính năng & dữ liệu</h3>
+          <p className="feature-history-note">Biểu đồ ghi nhận tối đa 30 lần cập nhật trong phiên này.</p>
 
           {!thing.features || Object.keys(thing.features).length === 0 ? (
             <p style={{ color: 'var(--text-muted)' }}>Chưa có tính năng (features) nào.</p>
@@ -367,17 +396,18 @@ const Module2DTStatus = () => {
 
                 return (
                   <div key={featureId} className="accordion-item" style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
-                    <div
-                      className="accordion-header"
-                      style={{ padding: '0.75rem 1rem', background: isOpen ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}
+                    <button
+                      type="button"
+                      className="feature-toggle"
+                      aria-expanded={isOpen}
                       onClick={() => setActiveFeature(isOpen ? null : featureId)}
                     >
-                      <strong style={{ color: isOpen ? '#93c5fd' : 'var(--text-main)' }}>{featureId}</strong>
-                      <span>{isOpen ? '▲' : '▼'}</span>
-                    </div>
+                      <strong style={{ color: isOpen ? '#315be8' : 'var(--text-main)' }}>{featureId}</strong>
+                      <span aria-hidden="true">{isOpen ? '−' : '+'}</span>
+                    </button>
 
                     {isOpen && (
-                      <div className="accordion-body" style={{ padding: '1rem', background: 'rgba(0,0,0,0.1)' }}>
+                      <div className="accordion-body" style={{ padding: '1rem', background: 'rgba(229, 235, 245, 0.42)' }}>
                         {Object.keys(props).length === 0 ? <p style={{ color: 'var(--text-muted)' }}>Không có properties.</p> : null}
 
                         <div style={{ display: 'grid', gap: '1rem' }}>
@@ -388,34 +418,34 @@ const Module2DTStatus = () => {
                             const isNumeric = typeof propVal === 'number';
 
                             return (
-                              <div key={propKey} style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '4px', borderLeft: isDesync ? '3px solid var(--danger)' : '3px solid var(--success)' }}>
+                              <div key={propKey} style={{ background: 'rgba(232, 238, 248, 0.4)', padding: '0.75rem', borderRadius: '4px', borderLeft: isDesync ? '3px solid var(--danger)' : '3px solid var(--success)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                                   <span style={{ fontWeight: 600 }}>{propKey}</span>
-                                  {isDesync && <span style={{ fontSize: '0.7rem', color: '#fca5a5', background: 'rgba(239,68,68,0.2)', padding: '2px 6px', borderRadius: '4px' }}>Chưa đồng bộ</span>}
+                                  {isDesync && <span style={{ fontSize: '0.7rem', color: '#ba374b', background: 'rgba(239,68,68,0.2)', padding: '2px 6px', borderRadius: '4px' }}>Chưa đồng bộ</span>}
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem' }}>
                                   <div>
-                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase' }}>Current Value</div>
-                                    <div style={{ fontSize: '1.1rem', color: isDesync ? '#fca5a5' : '#6ee7b7' }}>{JSON.stringify(propVal)}</div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'none' }}>Giá trị hiện tại</div>
+                                    <div style={{ fontSize: '1.1rem', color: isDesync ? '#ba374b' : '#14755d' }}>{JSON.stringify(propVal)}</div>
                                   </div>
                                   {hasDesired && (
                                     <div>
-                                      <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase' }}>Desired Value</div>
-                                      <div style={{ fontSize: '1.1rem', color: '#93c5fd' }}>{JSON.stringify(desVal)}</div>
+                                      <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'none' }}>Giá trị mong muốn</div>
+                                      <div style={{ fontSize: '1.1rem', color: '#315be8' }}>{JSON.stringify(desVal)}</div>
                                     </div>
                                   )}
                                 </div>
 
 
-                                {isNumeric && (
+                                {isNumeric && featureHistory[`${featureId}/${propKey}`]?.length > 1 && (
                                   <div style={{ height: '120px', marginTop: '1rem' }}>
                                     <ResponsiveContainer width="100%" height="100%">
-                                      <LineChart data={generateMockChartData(propVal)}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                      <LineChart data={featureHistory[`${featureId}/${propKey}`] || []}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(81, 107, 145, 0.18)" />
                                         <XAxis dataKey="time" hide />
-                                        <YAxis domain={['auto', 'auto']} width={30} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                                        <Tooltip contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '4px', color: '#fff' }} />
-                                        <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} isAnimationActive={false} />
+                                        <YAxis domain={['auto', 'auto']} width={30} tick={{ fontSize: 10, fill: '#5f6e83' }} />
+                                        <Tooltip labelStyle={{ color: 'var(--text-muted)' }} contentStyle={{ background: '#fff', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-main)', fontSize: '.72rem' }} />
+                                        <Line name="Giá trị" type="monotone" dataKey="value" stroke="#315be8" strokeWidth={2} dot={false} isAnimationActive={false} />
                                       </LineChart>
                                     </ResponsiveContainer>
                                   </div>
@@ -434,41 +464,43 @@ const Module2DTStatus = () => {
         </div>
 
 
-        <div className="glass-panel panel-d" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Panel D: Live Messages</h3>
+        <div className="glass-panel panel-d" hidden={section !== 'messages'} style={{ gridColumn: 'span 12', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Gửi lệnh đến thiết bị</h3>
 
           <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
-            {msgStatus && <div style={{ fontSize: '0.8rem', color: msgStatus.type === 'error' ? 'var(--danger)' : 'var(--success)' }}>{msgStatus.text}</div>}
+            {msgStatus && <div role="status" style={{ fontSize: '0.8rem', color: msgStatus.type === 'error' ? 'var(--danger)' : 'var(--success)' }}>{msgStatus.text}</div>}
             <input
-              placeholder="Subject (VD: tempAlert)"
+              aria-label="Tên lệnh"
+              placeholder="Tên lệnh (ví dụ: set_temperature)"
               value={messageSubject}
               onChange={e => setMessageSubject(e.target.value)}
               required
               style={{ padding: '0.5rem', fontSize: '0.85rem' }}
             />
             <textarea
-              placeholder="Payload (JSON)"
+              aria-label="Nội dung lệnh JSON"
+              placeholder="Nội dung lệnh (JSON)"
               value={messagePayload}
               onChange={e => setMessagePayload(e.target.value)}
               required
               rows={3}
               style={{ padding: '0.5rem', fontSize: '0.85rem', fontFamily: 'monospace' }}
             />
-            <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-end', fontSize: '0.85rem', padding: '0.4rem 1rem' }}>Gửi Message (INBOX)</button>
+            <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-end', fontSize: '0.85rem', padding: '0.4rem 1rem' }}>Gửi lệnh</button>
           </form>
 
           <div style={{ flex: 1, borderTop: '1px solid var(--border-color)', paddingTop: '1rem', overflowY: 'auto', maxHeight: '200px' }}>
             <h4 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Lịch sử gần đây</h4>
-            {messagesLog.length === 0 ? <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Chưa có tin nhắn nào.</div> : (
+            {messagesLog.length === 0 ? <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Các lệnh đã gửi trong phiên này sẽ xuất hiện ở đây.</div> : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {messagesLog.map((log, idx) => (
-                  <li key={idx} style={{ background: 'rgba(255,255,255,0.05)', padding: '0.5rem', borderRadius: '4px', fontSize: '0.8rem' }}>
+                  <li key={idx} style={{ background: 'rgba(232, 238, 248, 0.4)', padding: '0.5rem', borderRadius: '4px', fontSize: '0.8rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                       <span>{log.dir}</span>
                       <span>{log.time}</span>
                     </div>
-                    <div style={{ fontWeight: 600, color: '#93c5fd', margin: '2px 0' }}>{log.subject}</div>
-                    <div style={{ fontFamily: 'monospace', color: '#a78bfa', wordBreak: 'break-all' }}>{log.payload}</div>
+                    <div style={{ fontWeight: 600, color: '#315be8', margin: '2px 0' }}>{log.subject}</div>
+                    <div style={{ fontFamily: 'monospace', color: '#7160ae', wordBreak: 'break-all' }}>{log.payload}</div>
                   </li>
                 ))}
               </ul>
@@ -479,7 +511,7 @@ const Module2DTStatus = () => {
       </div>
 
       {showSetupModal && (
-        <div className="modal-overlay" onClick={() => setShowSetupModal(false)}>
+        <Modal title="Thiết lập đồ thị mục tiêu" onClose={() => setShowSetupModal(false)}>
           <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px' }}>
             <div className="modal-header">
               <h2 className="modal-title">Thiết lập Biểu đồ Mục tiêu</h2>
@@ -489,7 +521,7 @@ const Module2DTStatus = () => {
               <TargetGraphSetup hidePreview={true} onGraphChange={() => setGraphRefreshKey(prev => prev + 1)} />
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {showFullGraphModal && createPortal(

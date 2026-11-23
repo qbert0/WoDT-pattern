@@ -1,20 +1,22 @@
 import { GOAL_TYPES, normalizeGoalType, requireGoalType } from '../utils/goalTypes';
 import { getThingGoalAnchor, goalAnchorCandidates, GOAL_HIERARCHY_QUERY, GOAL_DEPENDENCIES_QUERY } from '../../../goal_model/goals';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
+import { forceCollide } from 'd3-force';
+import { Maximize2, Settings2 } from 'lucide-react';
 import neo4j from 'neo4j-driver';
 import { NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD } from '../config';
 
 const NODE_COLORS = {
-  Agent: '#f87171',
-  Goal: '#60a5fa',
-  Task: '#34d399',
-  Action: '#34d399',
-  DT: '#a78bfa',
-  Capability: '#fbbf24',
-  Kettle: '#a78bfa',
+  Agent: '#ba374b',
+  Goal: '#315be8',
+  Task: '#14755d',
+  Action: '#14755d',
+  DT: '#7160ae',
+  Capability: '#a36a16',
+  Kettle: '#7160ae',
 };
-const getNodeColor = (node) => NODE_COLORS[node.type] || '#94a3b8';
+const getNodeColor = (node) => NODE_COLORS[node.type] || '#5f6e83';
 const NODE_SHAPES = {
   circle: { path: 'M 6 0 A 6 6 0 1 0 -6 0 A 6 6 0 1 0 6 0 Z', radius: 6, height: 6 },
   capsule: { path: 'M -6 -6 L 6 -6 A 6 6 0 0 1 6 6 L -6 6 A 6 6 0 0 1 -6 -6 Z', radius: 12, height: 6 },
@@ -48,6 +50,7 @@ try {
 }
 
 const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [], isLarge, width, height }) => {
+  const formId = useId();
   const [data, setData] = useState({ nodes: [], links: [] });
   const [loading, setLoading] = useState(true);
   const [showDependencies, setShowDependencies] = useState(false);
@@ -59,6 +62,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
   const [submitting, setSubmitting] = useState(false);
   const [formStatus, setFormStatus] = useState({ type: '', message: '' });
   const fileInputRef = useRef(null);
+  const graphRef = useRef(null);
+  const needsFitRef = useRef(true);
 
   const [nodeData, setNodeData] = useState({
     label: 'Goal',
@@ -619,26 +624,40 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
     };
   }, [thingId, goalRootId, goalAgentId, componentGoalAgentIds, isLarge, localRefreshKey, showDependencies]);
 
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph || loading) return;
+    graph.d3Force('link')?.distance(90);
+    graph.d3Force('charge')?.strength(-220);
+    graph.d3Force('collision', forceCollide(32));
+    needsFitRef.current = true;
+    graph.d3ReheatSimulation();
+  }, [data, loading]);
+
+  useEffect(() => { needsFitRef.current = true; }, [width, height]);
+  const fitGraph = () => {
+    const graph = graphRef.current;
+    if (!graph || !data.nodes.length) return;
+    graph.zoomToFit(0, 65);
+    graph.zoom(Math.min(graph.zoom(), 2));
+  };
+
   if (loading) {
     return (
       <div style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
         <div className="loading-spinner"></div>
-        <span style={{ marginLeft: '10px' }}>Đang tải dữ liệu thực từ Neo4j...</span>
+        <span style={{ marginLeft: '10px' }}>Đang tải đồ thị…</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ width, height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1rem', textAlign: 'center' }}>
-        <div style={{ color: 'var(--danger)', marginBottom: '1rem' }}>⚠️ {error}</div>
-        <button
-          className="btn"
-          style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.1)' }}
-          onClick={() => window.location.reload()}
-        >
-          Thử lại
-        </button>
+      <div className="graph-error-state" style={{ width, height }} role="status">
+        <strong>Chưa thể tải đồ thị</strong>
+        <p>Kiểm tra kết nối Neo4j và thử tải lại.</p>
+        <button className="btn" onClick={() => setLocalRefreshKey(value => value + 1)}>Tải lại đồ thị</button>
+        <details><summary>Chi tiết lỗi</summary><p>{error}</p></details>
       </div>
     );
   }
@@ -646,6 +665,9 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', borderRadius: '8px' }}>
       <ForceGraph2D
+        ref={graphRef}
+        cooldownTicks={80}
+        onEngineStop={() => { if (needsFitRef.current) { fitGraph(); needsFitRef.current = false; } }}
         graphData={data}
         width={width}
         height={height}
@@ -678,7 +700,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
             .filter(([key]) => key !== 'precondition' && key !== 'postcondition')
             .map(([k, v]) => `<div><b>${escapeHtml(k)}:</b> ${escapeHtml(v)}</div>`)
             .join('');
-          return `<div style="background: rgba(15, 23, 42, 0.9); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 11px;">
+          return `<div style="background: rgba(255, 255, 255, 0.97); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 11px; color: #202c3d;">
                         <div style="color: ${getNodeColor(node)}; font-weight: bold; margin-bottom: 4px;">${escapeHtml(node.type)}: ${escapeHtml(node.name)}</div>
                         ${props}
                     </div>`;
@@ -690,12 +712,12 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         linkDirectionalArrowLength={3.5}
         linkDirectionalArrowRelPos={1}
         linkCurvature={0.25}
-        linkColor={() => 'rgba(255, 255, 255, 0.2)'}
+        linkColor={() => '#a5b6cd'}
         linkWidth={1.5}
         linkLabel={(link) => {
           const typeStr = link.properties?.type ? ` (${link.properties.type})` : '';
-          return `<div style="background: rgba(15, 23, 42, 0.9); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 11px; color: #fff;">
-                    <b>Liên kết:</b> <span style="color: #a78bfa; font-weight: bold;">${link.label}${typeStr}</span>
+          return `<div style="background: rgba(255, 255, 255, 0.97); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 11px; color: #202c3d;">
+                    <b>Liên kết:</b> <span style="color: #7160ae; font-weight: bold;">${link.label}${typeStr}</span>
                   </div>`;
         }}
         linkCanvasObjectMode={() => 'after'}
@@ -719,7 +741,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
           if (globalScale < 1.2) return;
 
           const fontSize = 8 / globalScale;
-          ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+          ctx.font = `${fontSize}px "Be Vietnam Pro", system-ui, sans-serif`;
 
 
           const textWidth = ctx.measureText(label).width;
@@ -728,26 +750,26 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
           const bgW = textWidth + paddingX;
           const bgH = fontSize + paddingY;
 
-          ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.97)';
           ctx.fillRect(textPos.x - bgW / 2, textPos.y - bgH / 2, bgW, bgH);
 
 
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillStyle = '#94a3b8';
+          ctx.fillStyle = '#5f6e83';
           ctx.fillText(label, textPos.x, textPos.y);
         }}
         nodeCanvasObject={(node, ctx, globalScale) => {
           const label = node.name;
           const fontSize = 12 / globalScale;
           ctx.save();
-          ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+          ctx.font = `${fontSize}px "Be Vietnam Pro", system-ui, sans-serif`;
           fillNodeShape(node, ctx, getNodeColor(node));
 
-          if (globalScale > 1.5) {
+          if (globalScale > 0.8) {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#cbd5e1';
+            ctx.fillStyle = '#4b5d75';
             ctx.fillText(label, node.x, node.y + getNodeShape(node).height + (fontSize / 2) + 3 / globalScale);
           }
           ctx.restore();
@@ -758,13 +780,14 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
       <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 10 }}>
         <button
           className="btn btn-primary"
+          aria-expanded={showControlPanel}
           onClick={() => {
             setShowControlPanel(!showControlPanel);
             setFormStatus({ type: '', message: '' });
           }}
           style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '5px' }}
         >
-          {showControlPanel ? '✕ Đóng Thao tác' : '⚙️ Thao tác đồ thị'}
+          <Settings2 size={15} />{showControlPanel ? 'Đóng thao tác' : 'Thao tác đồ thị'}
         </button>
       </div>
 
@@ -774,7 +797,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
           position: 'absolute',
           top: '45px',
           left: '10px',
-          width: '320px',
+          width: 'min(380px, calc(100% - 20px))',
           maxHeight: 'calc(100% - 60px)',
           overflowY: 'auto',
           zIndex: 10,
@@ -785,17 +808,17 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
           gap: '10px'
         }}>
           {/* Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px', gap: '10px' }}>
+          <div className="graph-controls-tabs">
             <button
               onClick={() => { setActiveTab('add-node'); setFormStatus({ type: '', message: '' }); }}
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: activeTab === 'add-node' ? '#60a5fa' : '#94a3b8',
+                color: activeTab === 'add-node' ? '#315be8' : '#5f6e83',
                 fontWeight: activeTab === 'add-node' ? '600' : '400',
                 cursor: 'pointer',
                 padding: '2px 5px',
-                borderBottom: activeTab === 'add-node' ? '2px solid #60a5fa' : 'none'
+                borderBottom: activeTab === 'add-node' ? '2px solid #315be8' : 'none'
               }}
             >
               Thêm Node
@@ -805,11 +828,11 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: activeTab === 'add-link' ? '#60a5fa' : '#94a3b8',
+                color: activeTab === 'add-link' ? '#315be8' : '#5f6e83',
                 fontWeight: activeTab === 'add-link' ? '600' : '400',
                 cursor: 'pointer',
                 padding: '2px 5px',
-                borderBottom: activeTab === 'add-link' ? '2px solid #60a5fa' : 'none'
+                borderBottom: activeTab === 'add-link' ? '2px solid #315be8' : 'none'
               }}
             >
               Tạo liên kết
@@ -819,11 +842,11 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: activeTab === 'import-file' ? '#60a5fa' : '#94a3b8',
+                color: activeTab === 'import-file' ? '#315be8' : '#5f6e83',
                 fontWeight: activeTab === 'import-file' ? '600' : '400',
                 cursor: 'pointer',
                 padding: '2px 5px',
-                borderBottom: activeTab === 'import-file' ? '2px solid #60a5fa' : 'none'
+                borderBottom: activeTab === 'import-file' ? '2px solid #315be8' : 'none'
               }}
             >
               Nhập File
@@ -833,11 +856,11 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: activeTab === 'edit-delete' ? '#60a5fa' : '#94a3b8',
+                color: activeTab === 'edit-delete' ? '#315be8' : '#5f6e83',
                 fontWeight: activeTab === 'edit-delete' ? '600' : '400',
                 cursor: 'pointer',
                 padding: '2px 5px',
-                borderBottom: activeTab === 'edit-delete' ? '2px solid #60a5fa' : 'none'
+                borderBottom: activeTab === 'edit-delete' ? '2px solid #315be8' : 'none'
               }}
             >
               Sửa/Xóa
@@ -851,7 +874,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               borderRadius: '4px',
               backgroundColor: formStatus.type === 'success' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
               border: `1px solid ${formStatus.type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
-              color: formStatus.type === 'success' ? '#34d399' : '#f87171',
+              color: formStatus.type === 'success' ? '#14755d' : '#ba374b',
               fontSize: '0.8rem'
             }}>
               {formStatus.message}
@@ -861,8 +884,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
           {activeTab === 'add-node' ? (
             <form onSubmit={handleAddNode} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại Node (Label)</label>
-                <select
+                <label htmlFor={`${formId}-graph-field-1`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại Node (Label)</label>
+                <select id={`${formId}-graph-field-1`}
                   value={nodeData.label}
                   onChange={(e) => setNodeData({ ...nodeData, label: e.target.value })}
                   style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -878,8 +901,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Tên Node *</label>
-                <input
+                <label htmlFor={`${formId}-graph-field-2`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Tên Node *</label>
+                <input id={`${formId}-graph-field-2`}
                   type="text"
                   placeholder="Nhập tên node..."
                   value={nodeData.name}
@@ -890,8 +913,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Mô tả</label>
-                <textarea
+                <label htmlFor={`${formId}-graph-field-3`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Mô tả</label>
+                <textarea id={`${formId}-graph-field-3`}
                   placeholder="Nhập mô tả..."
                   value={nodeData.description}
                   onChange={(e) => setNodeData({ ...nodeData, description: e.target.value })}
@@ -901,8 +924,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
 
               {nodeData.label === 'Goal' && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại mục tiêu (Goal Type)</label>
-                  <select
+                  <label htmlFor={`${formId}-graph-field-4`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại mục tiêu (Goal Type)</label>
+                  <select id={`${formId}-graph-field-4`}
                     value={nodeData.type}
                     onChange={(e) => setNodeData({ ...nodeData, type: e.target.value })}
                     style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -914,8 +937,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
 
               {nodeData.label === 'Task' && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Lệnh thực thi (Command)</label>
-                  <input
+                  <label htmlFor={`${formId}-graph-field-5`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Lệnh thực thi (Command)</label>
+                  <input id={`${formId}-graph-field-5`}
                     type="text"
                     placeholder="Lệnh chạy task..."
                     value={nodeData.command}
@@ -926,10 +949,10 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               )}
 
               {data.nodes.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '2px solid rgba(255,255,255,0.1)', paddingLeft: '8px', marginLeft: '4px', marginTop: '6px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '2px solid rgba(81, 107, 145, 0.18)', paddingLeft: '8px', marginLeft: '4px', marginTop: '6px' }}>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Chọn Node liên kết *</label>
-                    <select
+                    <label htmlFor={`${formId}-graph-field-6`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Chọn Node liên kết *</label>
+                    <select id={`${formId}-graph-field-6`}
                       value={nodeData.targetNodeId}
                       onChange={(e) => setNodeData({ ...nodeData, targetNodeId: e.target.value })}
                       style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -943,8 +966,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại liên kết</label>
-                    <select
+                    <label htmlFor={`${formId}-graph-field-7`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại liên kết</label>
+                    <select id={`${formId}-graph-field-7`}
                       value={nodeData.relType}
                       onChange={(e) => setNodeData({ ...nodeData, relType: e.target.value })}
                       style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -958,8 +981,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
 
                   {nodeData.relType === 'REFINES' && (
                     <div>
-                      <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại phân rã (Type)</label>
-                      <select
+                      <label htmlFor={`${formId}-graph-field-8`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại phân rã (Type)</label>
+                      <select id={`${formId}-graph-field-8`}
                         value={nodeData.refinesType}
                         onChange={(e) => setNodeData({ ...nodeData, refinesType: e.target.value })}
                         style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -973,8 +996,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   {nodeData.relType === 'DEPENDS_ON' && (
                     <>
                       <div>
-                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại phụ thuộc (Type)</label>
-                        <select
+                        <label htmlFor={`${formId}-graph-field-9`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại phụ thuộc (Type)</label>
+                        <select id={`${formId}-graph-field-9`}
                           value={nodeData.dependsOnType}
                           onChange={(e) => setNodeData({ ...nodeData, dependsOnType: e.target.value })}
                           style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -984,8 +1007,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                         </select>
                       </div>
                       <div>
-                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Mô tả phụ thuộc</label>
-                        <textarea
+                        <label htmlFor={`${formId}-graph-field-10`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Mô tả phụ thuộc</label>
+                        <textarea id={`${formId}-graph-field-10`}
                           placeholder="Mô tả phụ thuộc..."
                           value={nodeData.dependsOnDescription}
                           onChange={(e) => setNodeData({ ...nodeData, dependsOnDescription: e.target.value })}
@@ -995,8 +1018,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                       {nodeData.dependsOnType === 'PARAMETER' && (
                         <>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Source Parameter</label>
-                            <input
+                            <label htmlFor={`${formId}-graph-field-11`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Source Parameter</label>
+                            <input id={`${formId}-graph-field-11`}
                               type="text"
                               placeholder="Ví dụ: amount"
                               value={nodeData.sourceParameter}
@@ -1005,8 +1028,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Target Parameter</label>
-                            <input
+                            <label htmlFor={`${formId}-graph-field-12`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Target Parameter</label>
+                            <input id={`${formId}-graph-field-12`}
                               type="text"
                               placeholder="Ví dụ: volume"
                               value={nodeData.targetParameter}
@@ -1015,8 +1038,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Factor</label>
-                            <input
+                            <label htmlFor={`${formId}-graph-field-13`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Factor</label>
+                            <input id={`${formId}-graph-field-13`}
                               type="number"
                               step="any"
                               value={nodeData.factor}
@@ -1025,8 +1048,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Offset</label>
-                            <input
+                            <label htmlFor={`${formId}-graph-field-14`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Offset</label>
+                            <input id={`${formId}-graph-field-14`}
                               type="number"
                               step="any"
                               value={nodeData.offset}
@@ -1040,8 +1063,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   )}
 
                   <div>
-                    <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Chiều liên kết</label>
-                    <select
+                    <label htmlFor={`${formId}-graph-field-15`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Chiều liên kết</label>
+                    <select id={`${formId}-graph-field-15`}
                       value={nodeData.direction}
                       onChange={(e) => setNodeData({ ...nodeData, direction: e.target.value })}
                       style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -1065,8 +1088,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
           ) : activeTab === 'add-link' ? (
             <form onSubmit={handleCreateLink} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Node Nguồn (Source)</label>
-                <select
+                <label htmlFor={`${formId}-graph-field-16`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Node Nguồn (Source)</label>
+                <select id={`${formId}-graph-field-16`}
                   value={linkData.sourceNodeId}
                   onChange={(e) => setLinkData({ ...linkData, sourceNodeId: e.target.value })}
                   style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -1079,13 +1102,13 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Chiều liên kết</label>
-                <div style={{ textAlign: 'center', color: '#a78bfa', fontSize: '1.2rem', padding: '2px 0' }}>↓</div>
+                <label style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Chiều liên kết</label>
+                <div style={{ textAlign: 'center', color: '#7160ae', fontSize: '1.2rem', padding: '2px 0' }}>↓</div>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Node Đích (Target)</label>
-                <select
+                <label htmlFor={`${formId}-graph-field-17`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Node Đích (Target)</label>
+                <select id={`${formId}-graph-field-17`}
                   value={linkData.targetNodeId}
                   onChange={(e) => setLinkData({ ...linkData, targetNodeId: e.target.value })}
                   style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -1098,8 +1121,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại liên kết</label>
-                <select
+                <label htmlFor={`${formId}-graph-field-18`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại liên kết</label>
+                <select id={`${formId}-graph-field-18`}
                   value={linkData.relType}
                   onChange={(e) => setLinkData({ ...linkData, relType: e.target.value })}
                   style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -1113,8 +1136,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
 
               {linkData.relType === 'REFINES' && (
                 <div>
-                  <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại phân rã (Type)</label>
-                  <select
+                  <label htmlFor={`${formId}-graph-field-19`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại phân rã (Type)</label>
+                  <select id={`${formId}-graph-field-19`}
                     value={linkData.refinesType}
                     onChange={(e) => setLinkData({ ...linkData, refinesType: e.target.value })}
                     style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -1128,8 +1151,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               {linkData.relType === 'DEPENDS_ON' && (
                 <>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại phụ thuộc (Type)</label>
-                    <select
+                    <label htmlFor={`${formId}-graph-field-20`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại phụ thuộc (Type)</label>
+                    <select id={`${formId}-graph-field-20`}
                       value={linkData.dependsOnType}
                       onChange={(e) => setLinkData({ ...linkData, dependsOnType: e.target.value })}
                       style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -1139,8 +1162,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Mô tả phụ thuộc</label>
-                    <textarea
+                    <label htmlFor={`${formId}-graph-field-21`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Mô tả phụ thuộc</label>
+                    <textarea id={`${formId}-graph-field-21`}
                       placeholder="Mô tả phụ thuộc..."
                       value={linkData.dependsOnDescription}
                       onChange={(e) => setLinkData({ ...linkData, dependsOnDescription: e.target.value })}
@@ -1150,8 +1173,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   {linkData.dependsOnType === 'PARAMETER' && (
                     <>
                       <div>
-                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Source Parameter</label>
-                        <input
+                        <label htmlFor={`${formId}-graph-field-22`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Source Parameter</label>
+                        <input id={`${formId}-graph-field-22`}
                           type="text"
                           placeholder="Ví dụ: amount"
                           value={linkData.sourceParameter}
@@ -1160,8 +1183,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                         />
                       </div>
                       <div>
-                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Target Parameter</label>
-                        <input
+                        <label htmlFor={`${formId}-graph-field-23`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Target Parameter</label>
+                        <input id={`${formId}-graph-field-23`}
                           type="text"
                           placeholder="Ví dụ: volume"
                           value={linkData.targetParameter}
@@ -1170,8 +1193,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                         />
                       </div>
                       <div>
-                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Factor</label>
-                        <input
+                        <label htmlFor={`${formId}-graph-field-24`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Factor</label>
+                        <input id={`${formId}-graph-field-24`}
                           type="number"
                           step="any"
                           value={linkData.factor}
@@ -1180,8 +1203,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                         />
                       </div>
                       <div>
-                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Offset</label>
-                        <input
+                        <label htmlFor={`${formId}-graph-field-25`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Offset</label>
+                        <input id={`${formId}-graph-field-25`}
                           type="number"
                           step="any"
                           value={linkData.offset}
@@ -1205,7 +1228,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
             </form>
           ) : activeTab === 'import-file' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: '1.4' }}>
+              <div style={{ fontSize: '0.8rem', color: '#5f6e83', lineHeight: '1.4' }}>
                 Chọn file chứa các câu truy vấn Cypher (chấp nhận định dạng <b>.cypher, .txt, .md, .markdown</b>). Hệ thống sẽ tự động tách các câu lệnh ngăn cách bằng dấu chấm phẩy (;) và thực thi.
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -1230,14 +1253,14 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {!selectedElement ? (
-                <div style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: '1.5', textAlign: 'center', padding: '10px 5px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ fontSize: '0.8rem', color: '#5f6e83', lineHeight: '1.5', textAlign: 'center', padding: '10px 5px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div>
                     💡 <b>Mẹo:</b> Click vào một Node hoặc Liên kết trên đồ thị để chỉnh sửa hoặc xóa.
                   </div>
                   
                   <div style={{ textAlign: 'left' }}>
-                    <label style={{ display: 'block', marginBottom: '2px', color: '#cbd5e1', fontSize: '0.75rem' }}>Chọn Node từ danh sách:</label>
-                    <select
+                    <label htmlFor={`${formId}-graph-field-26`} style={{ display: 'block', marginBottom: '2px', color: '#4b5d75', fontSize: '0.75rem' }}>Chọn Node từ danh sách:</label>
+                    <select id={`${formId}-graph-field-26`}
                       value=""
                       onChange={(e) => {
                         const node = data.nodes.find(n => n.id === e.target.value);
@@ -1253,8 +1276,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   </div>
 
                   <div style={{ textAlign: 'left' }}>
-                    <label style={{ display: 'block', marginBottom: '2px', color: '#cbd5e1', fontSize: '0.75rem' }}>Chọn Liên kết từ danh sách:</label>
-                    <select
+                    <label htmlFor={`${formId}-graph-field-27`} style={{ display: 'block', marginBottom: '2px', color: '#4b5d75', fontSize: '0.75rem' }}>Chọn Liên kết từ danh sách:</label>
+                    <select id={`${formId}-graph-field-27`}
                       value=""
                       onChange={(e) => {
                         if (e.target.value === "") return;
@@ -1299,7 +1322,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
               ) : selectedElement.type === 'node' ? (
                 <>
                 <section aria-label="Chi tiết node" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-                  <div style={{ fontWeight: '600', color: '#60a5fa', marginBottom: '8px' }}>
+                  <div style={{ fontWeight: '600', color: '#315be8', marginBottom: '8px' }}>
                     Chi tiết node
                   </div>
                   <div style={{ marginBottom: '8px' }}>
@@ -1308,7 +1331,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   <dl style={{ margin: 0, fontSize: '0.8rem' }}>
                     {Object.entries(selectedElement.data.properties || {}).map(([key, value]) => (
                       <div key={key} style={{ marginBottom: '8px' }}>
-                        <dt style={{ color: '#94a3b8', fontWeight: '600' }}>{key}</dt>
+                        <dt style={{ color: '#5f6e83', fontWeight: '600' }}>{key}</dt>
                         <dd style={{ margin: '2px 0 0', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
                           {String(value ?? '')}
                         </dd>
@@ -1317,12 +1340,12 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   </dl>
                 </section>
                 <form onSubmit={handleUpdateNode} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ fontWeight: '600', color: '#60a5fa', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
+                  <div style={{ fontWeight: '600', color: '#315be8', borderBottom: '1px solid rgba(81, 107, 145, 0.18)', paddingBottom: '4px' }}>
                     Đang sửa Node ({selectedElement.data.type})
                   </div>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Tên Node *</label>
-                    <input
+                    <label htmlFor={`${formId}-graph-field-28`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Tên Node *</label>
+                    <input id={`${formId}-graph-field-28`}
                       type="text"
                       value={editNodeData.name}
                       onChange={(e) => setEditNodeData({ ...editNodeData, name: e.target.value })}
@@ -1331,8 +1354,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Mô tả</label>
-                    <textarea
+                    <label htmlFor={`${formId}-graph-field-29`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Mô tả</label>
+                    <textarea id={`${formId}-graph-field-29`}
                       value={editNodeData.description}
                       onChange={(e) => setEditNodeData({ ...editNodeData, description: e.target.value })}
                       style={{ padding: '4px 8px', fontSize: '0.8rem', height: '60px', resize: 'vertical' }}
@@ -1340,8 +1363,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   </div>
                   {selectedElement.data.type === 'Goal' && (
                     <div>
-                      <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại mục tiêu</label>
-                      <select
+                      <label htmlFor={`${formId}-graph-field-30`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại mục tiêu</label>
+                      <select id={`${formId}-graph-field-30`}
                         value={editNodeData.type}
                         onChange={(e) => setEditNodeData({ ...editNodeData, type: e.target.value })}
                         style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -1353,8 +1376,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   )}
                   {selectedElement.data.type === 'Task' && (
                     <div>
-                      <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Lệnh thực thi</label>
-                      <input
+                      <label htmlFor={`${formId}-graph-field-31`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Lệnh thực thi</label>
+                      <input id={`${formId}-graph-field-31`}
                         type="text"
                         value={editNodeData.command}
                         onChange={(e) => setEditNodeData({ ...editNodeData, command: e.target.value })}
@@ -1385,7 +1408,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                     type="button"
                     className="btn"
                     onClick={() => setSelectedElement(null)}
-                    style={{ fontSize: '0.75rem', padding: '4px 8px', background: 'rgba(255,255,255,0.05)', marginTop: '4px' }}
+                    style={{ fontSize: '0.75rem', padding: '4px 8px', background: 'rgba(232, 238, 248, 0.4)', marginTop: '4px' }}
                   >
                     Hủy chọn
                   </button>
@@ -1393,17 +1416,17 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                 </>
               ) : (
                 <form onSubmit={handleUpdateLink} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ fontWeight: '600', color: '#a78bfa', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
+                  <div style={{ fontWeight: '600', color: '#7160ae', borderBottom: '1px solid rgba(81, 107, 145, 0.18)', paddingBottom: '4px' }}>
                     Đang chọn liên kết
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#4b5d75' }}>
                     <div><b>Nguồn:</b> {selectedElement.data.sourceName}</div>
                     <div><b>Đích:</b> {selectedElement.data.targetName}</div>
-                    <div><b>Loại hiện tại:</b> <span style={{ color: '#a78bfa', fontWeight: 'bold' }}>{selectedElement.data.label}</span></div>
+                    <div><b>Loại hiện tại:</b> <span style={{ color: '#7160ae', fontWeight: 'bold' }}>{selectedElement.data.label}</span></div>
                   </div>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại liên kết mới</label>
-                    <select
+                    <label htmlFor={`${formId}-graph-field-32`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại liên kết mới</label>
+                    <select id={`${formId}-graph-field-32`}
                       value={editLinkType}
                       onChange={(e) => setEditLinkType(e.target.value)}
                       style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -1416,8 +1439,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   </div>
                   {editLinkType === 'REFINES' && (
                     <div>
-                      <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại phân rã (Type)</label>
-                      <select
+                      <label htmlFor={`${formId}-graph-field-33`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại phân rã (Type)</label>
+                      <select id={`${formId}-graph-field-33`}
                         value={editLinkRefinesType}
                         onChange={(e) => setEditLinkRefinesType(e.target.value)}
                         style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -1430,8 +1453,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                   {editLinkType === 'DEPENDS_ON' && (
                     <>
                       <div>
-                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Loại phụ thuộc (Type)</label>
-                        <select
+                        <label htmlFor={`${formId}-graph-field-34`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Loại phụ thuộc (Type)</label>
+                        <select id={`${formId}-graph-field-34`}
                           value={editLinkDependsOnType}
                           onChange={(e) => setEditLinkDependsOnType(e.target.value)}
                           style={{ padding: '4px 8px', fontSize: '0.8rem', height: '30px' }}
@@ -1441,8 +1464,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                         </select>
                       </div>
                       <div>
-                        <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Mô tả phụ thuộc</label>
-                        <textarea
+                        <label htmlFor={`${formId}-graph-field-35`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Mô tả phụ thuộc</label>
+                        <textarea id={`${formId}-graph-field-35`}
                           placeholder="Mô tả phụ thuộc..."
                           value={editLinkDescription}
                           onChange={(e) => setEditLinkDescription(e.target.value)}
@@ -1452,8 +1475,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                       {editLinkDependsOnType === 'PARAMETER' && (
                         <>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Source Parameter</label>
-                            <input
+                            <label htmlFor={`${formId}-graph-field-36`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Source Parameter</label>
+                            <input id={`${formId}-graph-field-36`}
                               type="text"
                               placeholder="Ví dụ: amount"
                               value={editLinkSourceParam}
@@ -1462,8 +1485,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Target Parameter</label>
-                            <input
+                            <label htmlFor={`${formId}-graph-field-37`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Target Parameter</label>
+                            <input id={`${formId}-graph-field-37`}
                               type="text"
                               placeholder="Ví dụ: volume"
                               value={editLinkTargetParam}
@@ -1472,8 +1495,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Factor</label>
-                            <input
+                            <label htmlFor={`${formId}-graph-field-38`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Factor</label>
+                            <input id={`${formId}-graph-field-38`}
                               type="number"
                               step="any"
                               value={editLinkFactor}
@@ -1482,8 +1505,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '2px', color: '#94a3b8', fontSize: '0.75rem' }}>Offset</label>
-                            <input
+                            <label htmlFor={`${formId}-graph-field-39`} style={{ display: 'block', marginBottom: '2px', color: '#5f6e83', fontSize: '0.75rem' }}>Offset</label>
+                            <input id={`${formId}-graph-field-39`}
                               type="number"
                               step="any"
                               value={editLinkOffset}
@@ -1518,7 +1541,7 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
                     type="button"
                     className="btn"
                     onClick={() => setSelectedElement(null)}
-                    style={{ fontSize: '0.75rem', padding: '4px 8px', background: 'rgba(255,255,255,0.05)', marginTop: '4px' }}
+                    style={{ fontSize: '0.75rem', padding: '4px 8px', background: 'rgba(232, 238, 248, 0.4)', marginTop: '4px' }}
                   >
                     Hủy chọn
                   </button>
@@ -1529,8 +1552,8 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         </div>
       )}
 
-      {/* Keep the dependency toggle and legend in one stack to avoid overlap. */}
-      <div style={{ position: 'absolute', bottom: '10px', left: '10px', maxWidth: 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', zIndex: 2, pointerEvents: 'none' }}>
+      {/* Keep graph tools together; expand the legend only when needed. */}
+      <div style={{ position: 'absolute', bottom: '10px', left: '10px', maxWidth: 'calc(100% - 20px)', display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: '8px', zIndex: 2, pointerEvents: 'none' }}>
         <button
           type="button"
           className="btn graph-dependencies-toggle"
@@ -1540,27 +1563,25 @@ const KGGraph = ({ thingId, goalRootId, goalAgentId, componentGoalAgentIds = [],
         >
           {showDependencies ? 'Ẩn quan hệ phối hợp' : 'Xem quan hệ phối hợp'}
         </button>
-      {/* Legend */}
-      <div style={{ background: 'rgba(0,0,0,0.5)', padding: '8px', borderRadius: '4px', fontSize: '10px', display: 'flex', flexDirection: 'column', gap: '4px', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(4px)', pointerEvents: 'none' }}>
-        {[
-          { type: 'Agent', label: 'Agent — tròn' },
-          { type: 'Goal', label: 'Goal — viên nhộng' },
-          { type: 'Task', label: 'Task / Action — lục giác' },
-          { type: 'DT', label: 'DT / Kettle — tròn' },
-        ].map(item => (
-          <div key={item.type} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <svg width="24" height="16" viewBox="-13 -8 26 16" aria-hidden="true">
-              <path d={getNodeShape(item).path} fill={getNodeColor(item)} />
-            </svg>
-            <span>{item.label}</span>
+        <details className="graph-legend">
+          <summary>Chú giải</summary>
+          <div className="graph-legend-content">
+            {[
+              { type: 'Agent', label: 'Agent (tròn)' },
+              { type: 'Goal', label: 'Goal (viên nhộng)' },
+              { type: 'Task', label: 'Task / Action (lục giác)' },
+              { type: 'DT', label: 'DT / Kettle (tròn)' },
+            ].map(item => (
+              <div key={item.type}>
+                <svg width="24" height="16" viewBox="-13 -8 26 16" aria-hidden="true"><path d={getNodeShape(item).path} fill={getNodeColor(item)} /></svg>
+                <span>{item.label}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </details>
       </div>
 
-      <div style={{ position: 'absolute', top: '10px', right: '10px', fontSize: '9px', color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }}>
-        Neo4j: {NEO4J_URI}
-      </div>
+      <button className="icon-btn graph-fit-button" aria-label="Căn đồ thị vừa khung" onClick={fitGraph} title="Căn đồ thị vừa khung"><Maximize2 size={15} /></button>
     </div>
   );
 };

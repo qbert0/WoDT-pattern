@@ -1,28 +1,111 @@
 import React from 'react';
+import { ExternalLink, Network } from 'lucide-react';
 import { NEO4J_BROWSER_URL } from '../config';
 
-const Neo4jRedirect = () => {
-  const handleRedirect = () => {
-    window.open(NEO4J_BROWSER_URL, '_blank', 'noopener,noreferrer');
-  };
-
+export default function Neo4jRedirect() {
   return (
-    <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', maxWidth: '600px', margin: '0 auto', marginTop: '4rem' }}>
-      <h2 style={{ fontSize: '1.8rem', marginBottom: '1rem', color: 'var(--text-main)' }}>Neo4j Knowledge Graph Integration</h2>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', lineHeight: '1.6' }}>
-        Load your Digital Twin data into the Neo4j Knowledge Graph. This will redirect you to the specialized Neo4j graph application where you can visualize and manage your KG effectively.
-      </p>
-      
-      <button className="btn btn-primary" onClick={handleRedirect} style={{ padding: '0.75rem 2rem', fontSize: '1.1rem' }}>
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-          <polyline points="15 3 21 3 21 9"></polyline>
-          <line x1="10" y1="14" x2="21" y2="3"></line>
-        </svg>
-        Load KG to Neo4j
-      </button>
+    <div className="graph-page">
+      <div className="page-heading">
+        <div>
+          <h1>Đồ thị tri thức</h1>
+          <p>Khám phá mục tiêu, tác vụ và quan hệ giữa các bản sao số.</p>
+        </div>
+      </div>
+      <section className="graph-entry glass-panel">
+        <div className="graph-illustration" aria-hidden="true">
+          <svg viewBox="0 0 500 270" fill="none">
+            <path
+              d="M115 135L250 67M115 135L250 203M250 67L385 67M250 203L385 203M250 67L250 203"
+              stroke="#c5d2e8"
+              strokeWidth="1.5"
+            />
+            <path d="M250 67L385 203" stroke="#c5d2e8" strokeDasharray="5 5" />
+            <circle cx="115" cy="135" r="31" fill="#edf2ff" stroke="#8da8f2" />
+            <circle
+              cx="115"
+              cy="135"
+              r="10"
+              stroke="#315be8"
+              strokeWidth="1.5"
+            />
+            <rect
+              x="211"
+              y="45"
+              width="78"
+              height="44"
+              rx="22"
+              fill="#f0f4ff"
+              stroke="#a4b9f4"
+            />
+            <rect
+              x="235"
+              y="60"
+              width="30"
+              height="14"
+              rx="7"
+              stroke="#315be8"
+              strokeWidth="1.5"
+            />
+            <rect
+              x="211"
+              y="181"
+              width="78"
+              height="44"
+              rx="22"
+              fill="#f0f4ff"
+              stroke="#a4b9f4"
+            />
+            <rect
+              x="235"
+              y="196"
+              width="30"
+              height="14"
+              rx="7"
+              stroke="#315be8"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M365 44H405L418 67L405 90H365L352 67Z"
+              fill="#eaf7f1"
+              stroke="#89bfae"
+            />
+            <path
+              d="M376 67L383 74L396 60"
+              stroke="#168267"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M365 180H405L418 203L405 226H365L352 203Z"
+              fill="#eaf7f1"
+              stroke="#89bfae"
+            />
+            <path
+              d="M376 203L383 210L396 196"
+              stroke="#168267"
+              strokeWidth="1.5"
+            />
+          </svg>
+        </div>
+        <div className="graph-entry-copy">
+          <Network size={22} />
+          <h2>Mở rộng góc nhìn về hệ thống</h2>
+          <p>
+            Xem các mối liên hệ và chỉnh sửa đồ thị trong Neo4j. Với từng thiết
+            bị, bạn có thể xem đồ thị mục tiêu ngay trong trang chi tiết bản sao
+            số.
+          </p>
+          <a
+            className="btn btn-primary"
+            href={NEO4J_BROWSER_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Mở Neo4j
+            <ExternalLink size={15} />
+          </a>
+          <small>Mở trong thẻ mới</small>
+        </div>
+      </section>
     </div>
   );
-};
-
-export default Neo4jRedirect;
+}

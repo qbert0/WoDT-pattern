@@ -238,7 +238,7 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
           borderRadius: '8px',
           marginBottom: '1.5rem',
           background: status.type === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-          color: status.type === 'success' ? '#10b981' : '#ef4444',
+          color: status.type === 'success' ? '#168267' : '#ba374b',
           border: `1px solid ${status.type === 'success' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
           animation: 'fadeIn 0.3s ease'
         }}>
@@ -251,8 +251,8 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
         {activeTab === 'node' && (
           <form onSubmit={handleAddNode} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="form-group">
-              <label>Loại Node</label>
-              <select
+              <label htmlFor="targetgraphsetup-field-1">Loại Node</label>
+              <select id="targetgraphsetup-field-1"
                 value={nodeData.label}
                 onChange={(e) => setNodeData({ ...nodeData, label: e.target.value })}
               >
@@ -262,8 +262,8 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
             </div>
             {nodeData.label === 'Goal' && (
               <div className="form-group">
-                <label>Kiểu (Type)</label>
-                <select
+                <label htmlFor="targetgraphsetup-field-2">Kiểu (Type)</label>
+                <select id="targetgraphsetup-field-2"
                   value={nodeData.type}
                   onChange={(e) => setNodeData({ ...nodeData, type: e.target.value })}
                 >
@@ -273,8 +273,8 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
             )}
             {nodeData.label === 'Task' && (
               <div className="form-group">
-                <label>Lệnh (Command)</label>
-                <input
+                <label htmlFor="targetgraphsetup-field-3">Lệnh (Command)</label>
+                <input id="targetgraphsetup-field-3"
                   type="text"
                   placeholder="VD: heat_water --temp 90"
                   value={nodeData.command}
@@ -283,8 +283,8 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
               </div>
             )}
             <div className="form-group">
-              <label>Tên Node</label>
-              <input
+              <label htmlFor="targetgraphsetup-field-4">Tên Node</label>
+              <input id="targetgraphsetup-field-4"
                 type="text"
                 placeholder="VD: Heat Water"
                 value={nodeData.name}
@@ -292,8 +292,8 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
               />
             </div>
             <div className="form-group">
-              <label>Mô tả</label>
-              <textarea
+              <label htmlFor="targetgraphsetup-field-5">Mô tả</label>
+              <textarea id="targetgraphsetup-field-5"
                 rows="2"
                 placeholder="Mô tả ngắn gọn về node này..."
                 value={nodeData.description}
@@ -301,8 +301,8 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
               ></textarea>
             </div>
             <div className="form-group">
-              <label>Thuộc tính bổ sung (JSON)</label>
-              <input
+              <label htmlFor="targetgraphsetup-field-6">Thuộc tính bổ sung (JSON)</label>
+              <input id="targetgraphsetup-field-6"
                 type="text"
                 placeholder='{"unit": "celsius", "min": 0}'
                 value={nodeData.properties}
@@ -320,8 +320,8 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
           <form onSubmit={handleAddRelation} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div className="form-group">
-                <label>Node Gốc (ID hoặc Tên)</label>
-                <input
+                <label htmlFor="targetgraphsetup-field-7">Node Gốc (ID hoặc Tên)</label>
+                <input id="targetgraphsetup-field-7"
                   type="text"
                   placeholder="Source"
                   value={relData.source}
@@ -329,8 +329,8 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
                 />
               </div>
               <div className="form-group">
-                <label>Node Đích (ID hoặc Tên)</label>
-                <input
+                <label htmlFor="targetgraphsetup-field-8">Node Đích (ID hoặc Tên)</label>
+                <input id="targetgraphsetup-field-8"
                   type="text"
                   placeholder="Target"
                   value={relData.target}
@@ -339,8 +339,8 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
               </div>
             </div>
             <div className="form-group">
-              <label>Loại Quan hệ (Logic)</label>
-              <select
+              <label htmlFor="targetgraphsetup-field-9">Loại Quan hệ (Logic)</label>
+              <select id="targetgraphsetup-field-9"
                 value={relData.type}
                 onChange={(e) => setRelData({ ...relData, type: e.target.value })}
               >
@@ -352,8 +352,8 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
               </select>
             </div>
             <div className="form-group">
-              <label>Thuộc tính Quan hệ (JSON)</label>
-              <input
+              <label htmlFor="targetgraphsetup-field-10">Thuộc tính Quan hệ (JSON)</label>
+              <input id="targetgraphsetup-field-10"
                 type="text"
                 placeholder='{"weight": 1.0}'
                 value={relData.properties}
@@ -401,7 +401,7 @@ const TargetGraphSetup = ({ onGraphChange, hidePreview }) => {
       {!hidePreview && (
         <div style={{ marginTop: '2rem', flex: 1, minHeight: '400px', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
           <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--text-main)' }}>Xem trước Biểu đồ</h3>
-          <div style={{ height: '350px', width: '100%', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ height: '350px', width: '100%', background: 'rgba(229, 235, 245, 0.42)', borderRadius: '12px', overflow: 'hidden' }}>
             <KGGraph key={status.message} width={800} height={350} />
           </div>
         </div>

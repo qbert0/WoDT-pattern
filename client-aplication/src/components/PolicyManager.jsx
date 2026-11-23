@@ -1,3 +1,4 @@
+import Modal from './Modal';
 import React, { useState } from 'react';
 import {
   DITTO_API_BASE_URL as BASE_URL,
@@ -35,27 +36,27 @@ const EntryPanel = ({ policyId, entryLabel, onClose, onSaved }) => {
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content glass-panel" style={{ background: 'var(--bg-dark)', maxWidth: 600 }}>
+    <Modal title="Chỉnh sửa mục phân quyền" onClose={onClose}>
+      <div className="modal-content glass-panel" style={{ background: 'var(--bg-panel)', maxWidth: 600 }}>
         <div className="modal-header">
           <h3 className="modal-title">Entry: {entryLabel}</h3>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <button aria-label="Đóng hộp thoại" className="close-btn" onClick={onClose}>✕</button>
         </div>
         {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem' }}>{error}</div>}
         <div className="form-group">
-          <label>Subjects (JSON)</label>
-          <textarea value={subjects} onChange={e => setSubjects(e.target.value)} rows={5} style={{ fontFamily: 'monospace' }} />
+          <label htmlFor="policymanager-field-1">Subjects (JSON)</label>
+          <textarea id="policymanager-field-1" value={subjects} onChange={e => setSubjects(e.target.value)} rows={5} style={{ fontFamily: 'monospace' }} />
         </div>
         <div className="form-group">
-          <label>Resources (JSON)</label>
-          <textarea value={resources} onChange={e => setResources(e.target.value)} rows={8} style={{ fontFamily: 'monospace' }} />
+          <label htmlFor="policymanager-field-2">Resources (JSON)</label>
+          <textarea id="policymanager-field-2" value={resources} onChange={e => setResources(e.target.value)} rows={8} style={{ fontFamily: 'monospace' }} />
         </div>
         <div style={{ display: 'flex', gap: '1rem' }}>
-          <button className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)' }} onClick={onClose}>Cancel</button>
-          <button className="btn btn-success" style={{ flex: 2 }} onClick={save}>Save Entry</button>
+          <button className="btn" style={{ flex: 1, background: 'var(--surface-subtle)' }} onClick={onClose}>Hủy</button>
+          <button className="btn btn-success" style={{ flex: 2 }} onClick={save}>Lưu mục</button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -91,23 +92,23 @@ const PolicyDetail = ({ policyId, onClose }) => {
 
   return (
     <>
-      <div className="modal-overlay">
-        <div className="modal-content glass-panel" style={{ background: 'var(--bg-dark)', maxWidth: 680 }}>
+      <Modal title="Chi tiết phân quyền" onClose={onClose}>
+        <div className="modal-content glass-panel" style={{ background: 'var(--bg-panel)', maxWidth: 680 }}>
           <div className="modal-header">
             <h3 className="modal-title">Policy: {policyId}</h3>
-            <button className="close-btn" onClick={onClose}>✕</button>
+            <button aria-label="Đóng hộp thoại" className="close-btn" onClick={onClose}>✕</button>
           </div>
           {error && <div style={{ color: 'var(--danger)', marginBottom: '1rem' }}>{error}</div>}
           {loading ? <p style={{ color: 'var(--text-muted)' }}>Loading…</p> : policy && (
             <>
               <div style={{ marginBottom: '1.5rem' }}>
-                <div style={{ fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.75rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Entries</div>
+                <div style={{ fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.75rem', fontSize: '0.85rem', textTransform: 'none', letterSpacing: '0.05em' }}>Entries</div>
                 {Object.entries(policy.entries || {}).map(([label, entry]) => (
                   <div key={label} className="glass-panel" style={{ padding: '1rem', marginBottom: '0.75rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <span style={{ fontWeight: 600, color: '#93c5fd' }}>{label}</span>
+                      <span style={{ fontWeight: 600, color: '#315be8' }}>{label}</span>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setEditEntry(label)}>Edit</button>
+                        <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setEditEntry(label)}>Chỉnh sửa</button>
                         <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => deleteEntry(label)}>✕</button>
                       </div>
                     </div>
@@ -119,13 +120,13 @@ const PolicyDetail = ({ policyId, onClose }) => {
                 ))}
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                <input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="New entry label…" style={{ flex: 1 }} />
-                <button className="btn btn-primary" disabled={!newLabel} onClick={() => { setEditEntry(newLabel); setNewLabel(''); }}>+ Add Entry</button>
+                <input aria-label="Tên mục phân quyền mới" value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="New entry label…" style={{ flex: 1 }} />
+                <button className="btn btn-primary" disabled={!newLabel} onClick={() => { setEditEntry(newLabel); setNewLabel(''); }}>+ Thêm mục</button>
               </div>
             </>
           )}
         </div>
-      </div>
+      </Modal>
       {editEntry && (
         <EntryPanel policyId={policyId} entryLabel={editEntry} onClose={() => setEditEntry(null)} onSaved={load} />
       )}
@@ -191,54 +192,54 @@ const PolicyManager = () => {
 
   return (
     <div>
-      <div className="header">
-        <h1>Policies</h1>
-        <button className="btn btn-primary" onClick={() => setIsCreateOpen(true)}>+ Create Policy</button>
+      <div className="page-heading">
+        <div><h1>Phân quyền</h1><p>Quản lý quyền xem dữ liệu và điều khiển thiết bị.</p></div>
+        <button className="btn btn-primary" onClick={() => setIsCreateOpen(true)}>+ Tạo phân quyền</button>
       </div>
 
       {/* API note */}
-      <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1.5rem', color: '#93c5fd', fontSize: '0.9rem' }}>
-        ℹ️ The Ditto API does not provide a "list all policies" endpoint. Enter a known Policy ID below to manage it.
+      <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1.5rem', color: '#315be8', fontSize: '0.9rem' }}>
+        Nhập Policy ID để xem và chỉnh sửa quyền truy cập của bản sao số.
       </div>
 
-      {error && <div style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid var(--danger)', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>{error}</div>}
-      {success && <div style={{ background: 'rgba(16,185,129,0.2)', border: '1px solid var(--success)', color: '#6ee7b7', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>{success}</div>}
+      {error && <div style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid var(--danger)', color: '#ba374b', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>{error}</div>}
+      {success && <div style={{ background: 'rgba(16,185,129,0.2)', border: '1px solid var(--success)', color: '#168267', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>{success}</div>}
 
       {/* Lookup form */}
       <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-        <form onSubmit={lookup} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+        <form onSubmit={lookup} className="manager-lookup-form" style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
           <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-            <label>Policy ID to look up / manage</label>
-            <input value={lookupId} onChange={e => setLookupId(e.target.value)} placeholder="e.g. org.eclipse.ditto:default" required />
+            <label htmlFor="policymanager-field-3">Policy ID</label>
+            <input id="policymanager-field-3" value={lookupId} onChange={e => setLookupId(e.target.value)} placeholder="e.g. org.eclipse.ditto:default" required />
           </div>
-          <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>Open Policy</button>
-          <button type="button" className="btn btn-danger" style={{ whiteSpace: 'nowrap' }} onClick={() => deletePolicy(lookupId)} disabled={!lookupId}>Delete</button>
+          <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>Mở phân quyền</button>
+          <button type="button" className="btn btn-danger" style={{ whiteSpace: 'nowrap' }} onClick={() => deletePolicy(lookupId)} disabled={!lookupId}>Xóa</button>
         </form>
       </div>
 
-      {/* Create Policy Modal */}
+      {/* Tạo phân quyền Modal */}
       {isCreateOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content glass-panel" style={{ background: 'var(--bg-dark)', maxWidth: 500 }}>
+        <Modal title="Tạo phân quyền" onClose={() => setIsCreateOpen(false)}>
+          <div className="modal-content glass-panel" style={{ background: 'var(--bg-panel)', maxWidth: 500 }}>
             <div className="modal-header">
-              <h3 className="modal-title">Create Policy</h3>
-              <button className="close-btn" onClick={() => setIsCreateOpen(false)}>✕</button>
+              <h3 className="modal-title">Tạo phân quyền</h3>
+              <button aria-label="Đóng hộp thoại" className="close-btn" onClick={() => setIsCreateOpen(false)}>✕</button>
             </div>
             <form onSubmit={createDefault}>
               <div className="form-group">
-                <label>Policy ID</label>
-                <input value={createId} onChange={e => setCreateId(e.target.value)} placeholder="namespace:policy_name" required />
+                <label htmlFor="policymanager-field-4">Policy ID</label>
+                <input id="policymanager-field-4" value={createId} onChange={e => setCreateId(e.target.value)} placeholder="namespace:policy_name" required />
               </div>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-                Creates a policy with a default entry granting READ+WRITE on thing, policy, and message. You can edit entries afterwards.
+                Tạo quyền mặc định cho phép xem và chỉnh sửa thiết bị, phân quyền và tin nhắn. Bạn có thể điều chỉnh từng mục sau khi tạo.
               </p>
               <div style={{ display: 'flex', gap: '1rem' }}>
-                <button type="button" className="btn" style={{ flex: 1, background: 'rgba(255,255,255,0.1)' }} onClick={() => setIsCreateOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-success" style={{ flex: 2 }}>Create</button>
+                <button type="button" className="btn" style={{ flex: 1, background: 'var(--surface-subtle)' }} onClick={() => setIsCreateOpen(false)}>Hủy</button>
+                <button type="submit" className="btn btn-success" style={{ flex: 2 }}>Tạo phân quyền</button>
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Policy detail modal */}

@@ -1,299 +1,562 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import {
+  Plus,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  LayoutGrid,
+  List,
+  ChevronRight,
+  X,
+  Pause,
+  Play,
+  Boxes,
+  Radio,
+  AlertCircle,
+  ArrowUpRight,
+} from 'lucide-react';
 import {
   DITTO_API_BASE_URL as BASE_URL,
   HOME_POLL_INTERVAL_MS,
   SEARCH_PAGE_SIZE,
 } from '../config';
+import TwinVisual, { getDeviceIcon } from './TwinVisual';
+import {
+  getTwinStatus,
+  getTwinMetrics,
+  STATUS_LABELS,
+  formatMetric,
+  formatUpdated,
+} from '../utils/twinPresentation';
 
-const headers = (extra = {}) => ({
-  'Content-Type': 'application/json',
-  'Accept': 'application/json',
-  ...extra,
-});
+const headers = { Accept: 'application/json' };
 
-const Module1Home = () => {
+export default function Module1Home() {
   const [things, setThings] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
+  const [search, setSearch] = useState('');
   const [namespaceFilter, setNamespaceFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // all, online, offline
-  const [sortBy, setSortBy] = useState('_modified,desc'); // field,direction
-  
-  // Pagination
-  const [cursor, setCursor] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('_modified,desc');
   const [hasNext, setHasNext] = useState(false);
-
-  const navigate = useNavigate();
-  const eventSourceRef = useRef(null);
-
-  const fetchThings = async (isLoadMore = false) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Build RQL filter
-      let rqlParts = [];
-      if (searchTerm) {
-        rqlParts.push(`like(thingId,"*${searchTerm}*")`);
-      }
-      if (namespaceFilter) {
-        rqlParts.push(`like(thingId,"${namespaceFilter}:*")`);
-      }
-      // Status filtering is complex in RQL unless we have a specific field. We'll do a basic filter or client-side filter if not possible.
-      // For now, let's keep RQL simple.
-      let filterQuery = rqlParts.length > 0 ? `filter=${encodeURIComponent(rqlParts.join(' AND '))}` : '';
-      
-      const sortQuery = `sort=${sortBy}`;
-      let optionQuery = `option=size(${SEARCH_PAGE_SIZE})`;
-      if (isLoadMore && cursor) {
-        optionQuery += `,cursor(${cursor})`;
-      }
-
-      const queryParams = [filterQuery, sortQuery, optionQuery].filter(Boolean).join('&');
-      
-      const r = await fetch(`${BASE_URL}/search/things?${queryParams}`, { headers: headers() });
-      if (!r.ok) {
-        // Fallback to regular /things if search index is not enabled
-        if (r.status === 400 || r.status === 501) {
-            console.warn('Search API failed, falling back to /things API');
-            const fallbackRes = await fetch(`${BASE_URL}/things`, { headers: headers() });
-            if (!fallbackRes.ok) throw new Error(`HTTP ${fallbackRes.status}`);
-            const data = await fallbackRes.json();
-            setThings(data.items ?? (Array.isArray(data) ? data : []));
-            setHasNext(false);
-            return;
-        }
-        throw new Error(`HTTP ${r.status}`);
-      }
-      
-      const data = await r.json();
-      const newItems = data.items ?? [];
-      
-      if (isLoadMore) {
-        setThings(prev => [...prev, ...newItems]);
-      } else {
-        setThings(newItems);
-      }
-      
-      if (data.cursor) {
-        setCursor(data.cursor);
-        setHasNext(true);
-      } else {
-        setCursor(null);
-        setHasNext(false);
-      }
-    } catch (e) {
-      setError('Failed to fetch Things: ' + e.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [showFilters, setShowFilters] = useState(false);
+  const [view, setView] = useState('grid');
+  const [live, setLive] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const loadRef = useRef(() => {});
+  const liveRef = useRef(live);
+  liveRef.current = live;
 
   useEffect(() => {
-    fetchThings();
-  }, [searchTerm, namespaceFilter, sortBy]);
+    const timeout = setTimeout(() => setSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [searchTerm]);
 
-  // Setup SSE
   useEffect(() => {
-    // We can subscribe to changes to update the UI
-    const setupSSE = () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-      
-      // Standard SSE URL for Ditto
-      const sseUrl = `${BASE_URL}/things?live=true`;
-      
-      // Since EventSource doesn't support custom headers (like Authorization) easily in standard browser API, 
-      // we'd need a polyfill or to use WebSockets. 
-      // Alternatively, we can use fetch with streams, or just poll.
-      // Given the requirement, we will try standard EventSource and assume CORS/Auth is handled via cookies or a proxy, 
-      // OR we implement a simple polling interval if EventSource fails.
-      // Let's implement a manual polling for "live" feel if SSE fails due to Auth headers.
-      
-      // For now, let's implement a 10-second polling as a reliable fallback, since we need Auth header.
-      const interval = setInterval(() => {
-          // Re-fetch only if not actively searching/filtering heavily to avoid flicker
-          if (!isLoading) {
-              fetchThings();
+    let disposed = false;
+    let controller;
+    let busy = false;
+    let cursor = null;
+    let pageCount = 1;
+    // Refresh every loaded page so polling does not discard expanded results.
+    const load = async (mode = 'refresh') => {
+      if (mode === 'poll' && busy) return;
+      if (mode === 'more' && (!cursor || busy)) return;
+      controller?.abort();
+      const requestController = new AbortController();
+      controller = requestController;
+      busy = true;
+      setIsLoading(true);
+      try {
+        const filters = [];
+        if (search)
+          filters.push(`like(thingId,${JSON.stringify(`*${search}*`)})`);
+        if (namespaceFilter)
+          filters.push(
+            `like(thingId,${JSON.stringify(`${namespaceFilter}:*`)})`,
+          );
+        let nextCursor = mode === 'more' ? cursor : null;
+        let items = [];
+        let fallback = false;
+        const pages = mode === 'more' ? 1 : pageCount;
+        for (let page = 0; page < pages; page++) {
+          const params = new URLSearchParams({
+            sort: sortBy,
+            option: `size(${SEARCH_PAGE_SIZE})${nextCursor ? `,cursor(${nextCursor})` : ''}`,
+          });
+          if (filters.length)
+            params.set(
+              'filter',
+              filters.length === 1 ? filters[0] : `and(${filters.join(',')})`,
+            );
+          const response = await fetch(`${BASE_URL}/search/things?${params}`, {
+            headers,
+            signal: requestController.signal,
+          });
+          if (response.status === 400 || response.status === 501) {
+            const response = await fetch(`${BASE_URL}/things`, {
+              headers,
+              signal: requestController.signal,
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            items = (data.items ?? (Array.isArray(data) ? data : [])).filter(
+              (thing) =>
+                (!search ||
+                  thing.thingId.toLowerCase().includes(search.toLowerCase())) &&
+                (!namespaceFilter ||
+                  thing.thingId.startsWith(`${namespaceFilter}:`)),
+            );
+            const [field, direction] = sortBy.split(',');
+            items.sort(
+              (a, b) =>
+                String(a[field] || '').localeCompare(String(b[field] || '')) *
+                (direction === 'asc' ? 1 : -1),
+            );
+            nextCursor = null;
+            fallback = true;
+            break;
           }
-      }, HOME_POLL_INTERVAL_MS);
-      
-      return () => clearInterval(interval);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          items.push(...(data.items || []));
+          nextCursor = data.cursor || null;
+          if (!nextCursor) break;
+        }
+        if (disposed || requestController.signal.aborted) return;
+        setThings((previous) => [
+          ...new Map(
+            (mode === 'more' && !fallback
+              ? [...previous, ...items]
+              : items
+            ).map((thing) => [thing.thingId, thing]),
+          ).values(),
+        ]);
+        if (mode === 'more' && !fallback) pageCount++;
+        cursor = nextCursor;
+        setHasNext(Boolean(nextCursor));
+        setLastUpdated(new Date());
+        setError(null);
+      } catch (err) {
+        if (!disposed && !requestController.signal.aborted)
+          setError(
+            `Không tải được bản sao số (${err.message}). Kiểm tra kết nối dịch vụ và thử lại.`,
+          );
+      } finally {
+        if (!disposed && controller === requestController) {
+          busy = false;
+          setIsLoading(false);
+        }
+      }
     };
+    loadRef.current = load;
+    load();
+    const interval = setInterval(() => {
+      if (liveRef.current && !document.hidden) load('poll');
+    }, HOME_POLL_INTERVAL_MS);
+    return () => {
+      disposed = true;
+      controller?.abort();
+      clearInterval(interval);
+    };
+  }, [search, namespaceFilter, sortBy]);
 
-    const cleanup = setupSSE();
-    return cleanup;
-  }, [searchTerm, namespaceFilter, sortBy]);
-
-  // Helper to determine status
-  const getStatus = (thing) => {
-    // If we have a ping feature
-    if (thing.features && thing.features.ConnectionStatus?.properties?.status) {
-        return thing.features.ConnectionStatus.properties.status.toLowerCase();
-    }
-    
-    // Fallback: check _modified timestamp
-    const modifiedStr = thing._modified; // e.g. "2026-05-04T04:02:56Z"
-    if (!modifiedStr) return 'unknown';
-    
-    const modifiedTime = new Date(modifiedStr).getTime();
-    const now = new Date().getTime();
-    const diffMinutes = (now - modifiedTime) / 1000 / 60;
-    
-    if (diffMinutes < 5) return 'online';
-    return 'offline';
+  const counts = things.reduce(
+    (result, thing) => {
+      result[getTwinStatus(thing)]++;
+      return result;
+    },
+    { online: 0, offline: 0, unknown: 0 },
+  );
+  const filteredThings = things.filter(
+    (thing) => statusFilter === 'all' || getTwinStatus(thing) === statusFilter,
+  );
+  const activeFilters = Boolean(namespaceFilter || sortBy !== '_modified,desc');
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSearch('');
+    setNamespaceFilter('');
+    setStatusFilter('all');
+    setSortBy('_modified,desc');
   };
-
-  const getSystemBadge = (thing) => {
-      // Logic to check if it belongs to a System. Often represented as a tag or specific attribute.
-      if (thing.attributes?.systemId) return thing.attributes.systemId;
-      if (thing.attributes?.tags?.includes('System')) return 'System';
-      return null;
-  };
-
-  const getActivitySummary = (thing) => {
-      if (!thing.features) return 'No features available';
-      const fKeys = Object.keys(thing.features).filter(k => k !== 'ConnectionStatus');
-      if (fKeys.length === 0) return 'Idle';
-      return `Active features: ${fKeys.slice(0, 3).join(', ')}${fKeys.length > 3 ? '...' : ''}`;
-  };
-
-  const filteredThings = things.filter(thing => {
-      if (statusFilter === 'all') return true;
-      return getStatus(thing) === statusFilter;
-  });
 
   return (
-    <div className="module1-container">
-      <div className="header" style={{ marginBottom: '1.5rem' }}>
-        <h1>TRANG CHỦ: DANH SÁCH BẢN SAO SỐ</h1>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => fetchThings()}>
-             ↻ Tải lại
-          </button>
-          <button className="btn btn-primary" onClick={() => navigate('/create-dt')}>
-             + Tạo DT Mới
-          </button>
+    <div className="twins-page">
+      <div className="page-heading">
+        <div>
+          <h1>
+            Digital Twins
+            <span className="heading-count">
+              {things.length}
+              {hasNext ? '+' : ''}
+            </span>
+          </h1>
+          <p>Theo dõi thiết bị. Kết nối với bản sao số của bạn.</p>
         </div>
+        <Link className="btn btn-primary" to="/create-dt">
+          <Plus size={17} />
+          Tạo bản sao số
+        </Link>
       </div>
 
-      {/* Control Bar: Search & Filters */}
-      <div className="controls-bar glass-panel" style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap', padding: '1rem' }}>
-          <div className="form-group" style={{ flex: '1 1 250px', marginBottom: 0 }}>
-              <input 
-                  type="text" 
-                  placeholder="Tìm kiếm bằng Keyword (thingId)..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-              />
+      <section className="fleet-overview" aria-label="Tổng quan kết quả đã tải">
+        <div className="overview-identity">
+          <TwinVisual compact />
+          <div>
+            <strong>Thiết bị & bản sao số</strong>
+            <span>Dữ liệu từ không gian làm việc của bạn</span>
           </div>
-          <div className="form-group" style={{ flex: '1 1 200px', marginBottom: 0 }}>
-              <input 
-                  type="text" 
-                  placeholder="Lọc theo Namespace (VD: org.eclipse)..." 
-                  value={namespaceFilter}
-                  onChange={(e) => setNamespaceFilter(e.target.value)}
-              />
-          </div>
-          <div className="form-group" style={{ flex: '0 0 150px', marginBottom: 0 }}>
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="all">Tất cả trạng thái</option>
-                  <option value="online">Online</option>
-                  <option value="offline">Offline</option>
-                  <option value="unknown">Unknown</option>
-              </select>
-          </div>
-          <div className="form-group" style={{ flex: '0 0 200px', marginBottom: 0 }}>
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                  <option value="_modified,desc">Cập nhật mới nhất</option>
-                  <option value="_modified,asc">Cập nhật cũ nhất</option>
-                  <option value="thingId,asc">Tên (A-Z)</option>
-                  <option value="thingId,desc">Tên (Z-A)</option>
-              </select>
-          </div>
-      </div>
+        </div>
+        <div className="fleet-stat">
+          <span className="status-dot online" />
+          <strong>{counts.online}</strong>
+          <span>Trực tuyến</span>
+        </div>
+        <div className="fleet-stat">
+          <span className="status-dot offline" />
+          <strong>{counts.offline}</strong>
+          <span>Ngoại tuyến</span>
+        </div>
+        <div className="fleet-stat">
+          <span className="status-dot unknown" />
+          <strong>{counts.unknown}</strong>
+          <span>Chưa xác định</span>
+        </div>
+      </section>
 
-      {error && <div style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid var(--danger)', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>{error}</div>}
-
-      {/* DT Cards Grid */}
-      {isLoading && things.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Đang tải dữ liệu…</div>
-      ) : (
-        <>
-            <div className="dt-grid">
-            {filteredThings.length === 0 ? (
-                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                Không tìm thấy Digital Twin nào phù hợp.
-                </div>
-            ) : filteredThings.map(thing => {
-                const [namespace, name] = thing.thingId.split(':');
-                const displayName = thing.attributes?.label || name;
-                const status = getStatus(thing);
-                const tags = thing.attributes?.tags || [];
-                const systemBadge = getSystemBadge(thing);
-                
-                return (
-                <div 
-                    key={thing.thingId} 
-                    className="dt-card glass-panel clickable"
-                    onClick={() => navigate(`/dt/${encodeURIComponent(thing.thingId)}`)}
-                >
-                    <div className="dt-card-header">
-                        <div>
-                            <div className="dt-namespace">{namespace}</div>
-                            <div className="dt-title">{displayName}</div>
-                            <div className="dt-thingid">{thing.thingId}</div>
-                        </div>
-                        <div className={`status-indicator status-${status}`} title={`Status: ${status}`}></div>
-                    </div>
-                    
-                    <div className="dt-card-body">
-                        <div className="dt-info-row">
-                            <span className="label">Hoạt động:</span>
-                            <span className="value">{getActivitySummary(thing)}</span>
-                        </div>
-                        <div className="dt-info-row">
-                            <span className="label">Cập nhật:</span>
-                            <span className="value">
-                                {thing._modified ? new Date(thing._modified).toLocaleString('vi-VN') : 'N/A'}
-                            </span>
-                        </div>
-                    </div>
-                    
-                    <div className="dt-card-footer">
-                        <div className="tags-container">
-                            {tags.map((tag, idx) => (
-                                <span key={idx} className="tag-pill">{tag}</span>
-                            ))}
-                        </div>
-                        {systemBadge && (
-                            <div className="system-badge">System: {systemBadge}</div>
-                        )}
-                    </div>
-                </div>
-                );
-            })}
-            </div>
-            
-            {hasNext && (
-                <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-                    <button 
-                        className="btn btn-primary" 
-                        onClick={() => fetchThings(true)}
-                        disabled={isLoading}
-                    >
-                        {isLoading ? 'Đang tải...' : 'Tải thêm'}
-                    </button>
-                </div>
+      <section className="twins-workspace" aria-label="Danh sách bản sao số">
+        <div className="collection-toolbar">
+          <div
+            className="status-tabs"
+            role="group"
+            aria-label="Lọc theo trạng thái"
+          >
+            {[
+              ['all', 'Tất cả', things.length],
+              ['online', 'Trực tuyến', counts.online],
+              ['offline', 'Ngoại tuyến', counts.offline],
+              ['unknown', 'Chưa xác định', counts.unknown],
+            ].map(([key, label, count]) => (
+              <button
+                key={key}
+                className={statusFilter === key ? 'is-selected' : ''}
+                aria-pressed={statusFilter === key}
+                onClick={() => setStatusFilter(key)}
+              >
+                {label}
+                <span>{count}</span>
+              </button>
+            ))}
+          </div>
+          <div className={`sync-state${error ? ' has-error' : ''}`}>
+            <span
+              className={`status-dot ${error ? 'error' : lastUpdated && live ? 'online' : 'unknown'}`}
+            />
+            <span>
+              {error
+                ? 'Đồng bộ gián đoạn'
+                : !live
+                  ? 'Đã tạm dừng'
+                  : 'Tự động cập nhật'}
+            </span>
+            <button
+              className="icon-btn"
+              onClick={() => {
+                setLive((value) => !value);
+                if (!live) loadRef.current();
+              }}
+              aria-label={
+                live ? 'Tạm dừng cập nhật tự động' : 'Tiếp tục cập nhật tự động'
+              }
+              aria-pressed={!live}
+              title={`Chu kỳ cập nhật: ${HOME_POLL_INTERVAL_MS / 1000} giây`}
+            >
+              {live ? <Pause size={13} /> : <Play size={13} />}
+            </button>
+          </div>
+        </div>
+        <div className="search-toolbar">
+          <div className="search-field">
+            <Search size={18} />
+            <input
+              aria-label="Tìm bản sao số theo Thing ID"
+              placeholder="Tìm bản sao số theo Thing ID…"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+            {searchTerm && (
+              <button
+                className="icon-btn"
+                aria-label="Xóa tìm kiếm"
+                onClick={() => setSearchTerm('')}
+              >
+                <X size={15} />
+              </button>
             )}
-        </>
-      )}
+          </div>
+          <button
+            className={`btn filter-button${showFilters || activeFilters ? ' is-selected' : ''}`}
+            aria-expanded={showFilters}
+            aria-controls="twin-filters"
+            onClick={() => setShowFilters((value) => !value)}
+          >
+            <SlidersHorizontal size={16} />
+            <span>Bộ lọc</span>
+            {activeFilters && <span className="filter-dot" />}
+          </button>
+          <button
+            className="icon-btn refresh-button"
+            aria-label="Tải lại bản sao số"
+            disabled={isLoading}
+            onClick={() => loadRef.current()}
+          >
+            <RefreshCw size={17} className={isLoading ? 'is-spinning' : ''} />
+          </button>
+          <span className="toolbar-divider" />
+          <div className="view-switch" role="group" aria-label="Chế độ xem">
+            <button
+              className={`icon-btn${view === 'grid' ? ' is-selected' : ''}`}
+              aria-label="Xem dạng lưới"
+              aria-pressed={view === 'grid'}
+              onClick={() => setView('grid')}
+            >
+              <LayoutGrid size={17} />
+            </button>
+            <button
+              className={`icon-btn${view === 'list' ? ' is-selected' : ''}`}
+              aria-label="Xem dạng danh sách"
+              aria-pressed={view === 'list'}
+              onClick={() => setView('list')}
+            >
+              <List size={18} />
+            </button>
+          </div>
+        </div>
+        {showFilters && (
+          <div className="filter-panel" id="twin-filters">
+            <div>
+              <label htmlFor="namespace-filter">Namespace</label>
+              <input
+                id="namespace-filter"
+                placeholder="Ví dụ: smart-home"
+                value={namespaceFilter}
+                onChange={(event) =>
+                  setNamespaceFilter(event.target.value.trim())
+                }
+              />
+            </div>
+            <div>
+              <label htmlFor="sort-filter">Sắp xếp</label>
+              <select
+                id="sort-filter"
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+              >
+                <option value="_modified,desc">Cập nhật mới nhất</option>
+                <option value="_modified,asc">Cập nhật cũ nhất</option>
+                <option value="thingId,asc">Tên từ A đến Z</option>
+                <option value="thingId,desc">Tên từ Z đến A</option>
+              </select>
+            </div>
+            <button className="btn btn-quiet" onClick={resetFilters}>
+              Đặt lại bộ lọc
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="notice notice-error" role="alert">
+            <AlertCircle size={18} />
+            <p>
+              {error}
+              {things.length > 0 &&
+                ' Đang hiển thị dữ liệu từ lần đồng bộ trước.'}
+            </p>
+            <button className="btn" onClick={() => loadRef.current()}>
+              Thử lại
+            </button>
+          </div>
+        )}
+
+        <div className="collection-meta">
+          <span aria-live="polite">
+            {filteredThings.length} bản sao số{hasNext ? ' đã tải' : ''}
+            {namespaceFilter && ` trong ${namespaceFilter}`}
+          </span>
+          <span>
+            {lastUpdated
+              ? `Đồng bộ lúc ${lastUpdated.toLocaleTimeString('vi-VN')}`
+              : 'Đang chờ đồng bộ'}
+          </span>
+        </div>
+        <div aria-busy={isLoading} className="collection-content">
+          {isLoading && !lastUpdated ? (
+            <div className="twin-grid" aria-label="Đang tải bản sao số">
+              {[0, 1, 2].map((key) => (
+                <div className="twin-skeleton" key={key}>
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              ))}
+            </div>
+          ) : filteredThings.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">
+                {searchTerm || namespaceFilter || statusFilter !== 'all' ? (
+                  <Search size={27} />
+                ) : error ? (
+                  <Radio size={27} />
+                ) : (
+                  <Boxes size={29} />
+                )}
+              </div>
+              <h2>
+                {error
+                  ? 'Chưa thể tải dữ liệu'
+                  : things.length ||
+                      searchTerm ||
+                      namespaceFilter ||
+                      statusFilter !== 'all'
+                    ? 'Không có bản sao phù hợp'
+                    : 'Bắt đầu với bản sao số đầu tiên'}
+              </h2>
+              <p>
+                {error
+                  ? 'Thử tải lại khi dịch vụ đã sẵn sàng.'
+                  : searchTerm || namespaceFilter || statusFilter !== 'all'
+                    ? 'Thay đổi từ khóa hoặc bộ lọc để xem thêm thiết bị.'
+                    : 'Kết nối thiết bị để theo dõi trạng thái và quản lý dữ liệu tại đây.'}
+              </p>
+              {error ? (
+                <button className="btn" onClick={() => loadRef.current()}>
+                  <RefreshCw size={16} />
+                  Tải lại dữ liệu
+                </button>
+              ) : searchTerm || namespaceFilter || statusFilter !== 'all' ? (
+                <button className="btn" onClick={resetFilters}>
+                  Xóa bộ lọc
+                </button>
+              ) : (
+                <Link className="btn btn-primary" to="/create-dt">
+                  <Plus size={16} />
+                  Tạo bản sao số
+                </Link>
+              )}
+            </div>
+          ) : (
+            <div className={view === 'grid' ? 'twin-grid' : 'twin-list'}>
+              {filteredThings.map((thing) => {
+                const [namespace, ...nameParts] = thing.thingId.split(':');
+                const name =
+                  thing.attributes?.label ||
+                  nameParts.join(':') ||
+                  thing.thingId;
+                const status = getTwinStatus(thing);
+                const Icon = getDeviceIcon(thing);
+                const tags = Array.isArray(thing.attributes?.tags)
+                  ? thing.attributes.tags
+                  : [];
+                const metrics = getTwinMetrics(thing);
+                return (
+                  <Link
+                    to={`/dt/${encodeURIComponent(thing.thingId)}`}
+                    key={thing.thingId}
+                    className={`twin-card${view === 'list' ? ' is-list' : ''}`}
+                  >
+                    <div className="twin-card-top">
+                      <span className="namespace-label">{namespace}</span>
+                      <span
+                        className={`status-badge ${status}`}
+                        title={
+                          thing.features?.ConnectionStatus?.properties?.status
+                            ? 'Trạng thái do thiết bị cung cấp'
+                            : 'Ước tính theo cập nhật trong 5 phút gần nhất'
+                        }
+                      >
+                        <span className={`status-dot ${status}`} />
+                        {STATUS_LABELS[status]}
+                      </span>
+                    </div>
+                    <div className="twin-card-visual">
+                      <TwinVisual thing={thing} />
+                      <ArrowUpRight size={18} className="open-twin-icon" />
+                    </div>
+                    <div className="twin-card-name">
+                      <span className="list-device-icon">
+                        <Icon size={22} strokeWidth={1.5} />
+                      </span>
+                      <div>
+                        <h2>{name}</h2>
+                        <p title={thing.thingId}>{thing.thingId}</p>
+                      </div>
+                    </div>
+                    <div className="twin-metrics">
+                      {metrics.map((metric) => (
+                        <div key={metric.label}>
+                          <span title={metric.label}>{metric.label}</span>
+                          <strong>
+                            {formatMetric(metric.value)}
+                            {metric.value != null && metric.unit && (
+                              <small>{metric.unit}</small>
+                            )}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="twin-card-footer">
+                      <div className="twin-tags">
+                        {thing.attributes?.systemId && (
+                          <span className="system-badge">
+                            {thing.attributes.systemId}
+                          </span>
+                        )}
+                        {tags.slice(0, 2).map((tag, index) => (
+                          <span className="tag-pill" key={index}>
+                            {String(tag)}
+                          </span>
+                        ))}
+                        {!tags.length && !thing.attributes?.systemId && (
+                          <span className="device-kind">
+                            {thing.features?.components?.properties?.thingIds
+                              ?.length
+                              ? 'Hệ thống'
+                              : 'Thiết bị'}
+                          </span>
+                        )}
+                      </div>
+                      <span className="twin-updated">
+                        {formatUpdated(thing._modified)}
+                      </span>
+                      <ChevronRight size={15} className="list-chevron" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {hasNext && (
+          <div className="load-more">
+            <button
+              className="btn"
+              disabled={isLoading}
+              onClick={() => loadRef.current('more')}
+            >
+              {isLoading ? 'Đang tải…' : 'Tải thêm bản sao số'}
+            </button>
+          </div>
+        )}
+      </section>
+      <p className="collection-footnote">
+        <Radio size={13} />
+        Trạng thái được lấy từ thiết bị hoặc ước tính theo thời điểm cập nhật
+        gần nhất.
+      </p>
     </div>
   );
-};
-
-export default Module1Home;
+}

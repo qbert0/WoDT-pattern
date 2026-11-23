@@ -229,12 +229,15 @@ const Module3CreateWizard = () => {
     }
   }, [goalAgentId]);
 
-  const handleTestConnection = () => {
-    // Mocking connection test for UI
+  const handleTestConnection = async () => {
     setTestConnStatus('loading');
-    setTimeout(() => {
+    try {
+      const response = await fetch(`${BASE_URL}/search/things?option=size(1)`, { headers: headers() });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       setTestConnStatus('success');
-    }, 1000);
+    } catch {
+      setTestConnStatus('error');
+    }
   };
 
   const nextStep = async () => {
@@ -386,53 +389,36 @@ const Module3CreateWizard = () => {
   };
 
   return (
-    <div className="module3-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
-      <div className="header" style={{ marginBottom: '2rem', textAlign: 'center' }}>
-        <h1>KHỞI TẠO DIGITAL TWIN MỚI</h1>
-      </div>
-
-      {/* Progress Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', position: 'relative' }}>
-        <div style={{ position: 'absolute', top: '15px', left: '0', right: '0', height: '2px', background: 'var(--border-color)', zIndex: 0 }}></div>
-        <div style={{ position: 'absolute', top: '15px', left: '0', width: `${(step - 1) * 33.33}%`, height: '2px', background: 'var(--primary)', transition: 'width 0.3s ease', zIndex: 1 }}></div>
-        
-        {[1, 2, 3, 4].map(num => (
-          <div key={num} style={{ 
-            width: '32px', height: '32px', borderRadius: '50%', 
-            background: step >= num ? 'var(--primary)' : 'var(--bg-dark)', 
-            border: step >= num ? '2px solid var(--primary)' : '2px solid var(--border-color)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2,
-            fontWeight: 600, color: step >= num ? '#fff' : 'var(--text-muted)'
-          }}>
-            {num}
-          </div>
-        ))}
-      </div>
+    <div className="wizard-page">
+      <div className="page-heading"><div><h1>Tạo bản sao số</h1><p>Định danh thiết bị, kết nối dữ liệu và thiết lập quyền truy cập.</p></div></div>
+      <nav className="wizard-steps" aria-label="Các bước tạo bản sao số">
+        {['Định danh', 'Mô tả thiết bị', 'Phân quyền', 'Xác nhận'].map((label, index) => <div key={label} className={`wizard-step${step === index + 1 ? ' is-active' : step > index + 1 ? ' is-complete' : ''}`} aria-current={step === index + 1 ? 'step' : undefined}><span>{step > index + 1 ? '✓' : index + 1}</span><strong>{label}</strong></div>)}
+      </nav>
 
       <div className="glass-panel" style={{ padding: '2rem' }}>
-        {error && <div style={{ color: '#fca5a5', background: 'rgba(239,68,68,0.2)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid var(--danger)' }}>{error}</div>}
+        {error && <div style={{ color: '#ba374b', background: 'rgba(239,68,68,0.2)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid var(--danger)' }}>{error}</div>}
         
         {/* Step 1: Identity & Connection */}
         {step === 1 && (
           <div className="step-content">
-            <h2 style={{ marginBottom: '1.5rem' }}>Bước 1: Định danh & Kết nối</h2>
+            <h2 style={{ marginBottom: '1.5rem' }}>Định danh & kết nối</h2>
             <div className="form-group">
-              <label>Namespace</label>
-              <input type="text" value={namespace} onChange={e => setNamespace(e.target.value)} placeholder="VD: org.eclipse.ditto" />
+              <label htmlFor="module3createwizard-field-1">Namespace</label>
+              <input id="module3createwizard-field-1" type="text" value={namespace} onChange={e => setNamespace(e.target.value)} placeholder="VD: org.eclipse.ditto" />
             </div>
             <div className="form-group">
-              <label>Tên thiết bị (Thing Name)</label>
-              <input type="text" value={thingName} onChange={e => setThingName(e.target.value)} placeholder="VD: sensor-01" />
+              <label htmlFor="module3createwizard-field-2">Tên thiết bị (Thing Name)</label>
+              <input id="module3createwizard-field-2" type="text" value={thingName} onChange={e => setThingName(e.target.value)} placeholder="VD: sensor-01" />
             </div>
-            <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', marginBottom: '1.5rem' }}>
+            <div style={{ padding: '1rem', background: 'rgba(229, 235, 245, 0.42)', borderRadius: '6px', marginBottom: '1.5rem' }}>
               <span style={{ color: 'var(--text-muted)' }}>Thing ID dự kiến: </span>
               <strong style={{ color: 'var(--primary)', fontSize: '1.2rem' }}>{thingName ? `${namespace}:${thingName}` : '(Chưa nhập)'}</strong>
             </div>
 
             <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Thiết lập kết nối (Telemetry)</h3>
             <div className="form-group">
-              <label>Giao thức</label>
-              <select value={protocol} onChange={e => setProtocol(e.target.value)}>
+              <label htmlFor="module3createwizard-field-3">Giao thức</label>
+              <select id="module3createwizard-field-3" value={protocol} onChange={e => setProtocol(e.target.value)}>
                 <option value="mqtt">MQTT</option>
                 <option value="amqp">AMQP 1.0</option>
                 <option value="http">HTTP Push</option>
@@ -441,8 +427,9 @@ const Module3CreateWizard = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem' }}>
               {testConnStatus === 'loading' && <span style={{ color: 'var(--text-muted)' }}>Đang kiểm tra...</span>}
-              {testConnStatus === 'success' && <span style={{ color: 'var(--success)' }}>✓ Kết nối thành công</span>}
-              <button className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={handleTestConnection}>Test Connection</button>
+              {testConnStatus === 'success' && <span role="status" style={{ color: 'var(--success)' }}>Dịch vụ sẵn sàng</span>}
+              {testConnStatus === 'error' && <span role="alert" style={{ color: 'var(--danger)' }}>Không kết nối được dịch vụ</span>}
+              <button className="btn" style={{ background: 'var(--surface-subtle)' }} disabled={testConnStatus === 'loading'} onClick={handleTestConnection}>Kiểm tra dịch vụ</button>
             </div>
           </div>
         )}
@@ -450,29 +437,29 @@ const Module3CreateWizard = () => {
         {/* Step 2: Thing Description */}
         {step === 2 && (
           <div className="step-content">
-            <h2 style={{ marginBottom: '1.5rem' }}>Bước 2: Thing Description (WoT)</h2>
+            <h2 style={{ marginBottom: '1.5rem' }}>Mô tả thiết bị</h2>
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-               <button className={`btn ${defType === 'url' ? 'btn-primary' : ''}`} style={{ flex: 1, background: defType === 'url' ? 'var(--primary)' : 'rgba(255,255,255,0.1)' }} onClick={() => setDefType('url')}>Sử dụng URL</button>
-               <button className={`btn ${defType === 'json' ? 'btn-primary' : ''}`} style={{ flex: 1, background: defType === 'json' ? 'var(--primary)' : 'rgba(255,255,255,0.1)' }} onClick={() => setDefType('json')}>Nhập JSON-LD</button>
+               <button className={`btn ${defType === 'url' ? 'btn-primary' : ''}`} style={{ flex: 1, background: defType === 'url' ? 'var(--primary)' : 'rgba(81, 107, 145, 0.18)' }} onClick={() => setDefType('url')}>Sử dụng URL</button>
+               <button className={`btn ${defType === 'json' ? 'btn-primary' : ''}`} style={{ flex: 1, background: defType === 'json' ? 'var(--primary)' : 'rgba(81, 107, 145, 0.18)' }} onClick={() => setDefType('json')}>Nhập JSON-LD</button>
             </div>
             
             {defType === 'url' ? (
               <div className="form-group">
-                <label>URL của Thing Description</label>
-                <input type="text" value={defUrl} onChange={e => setDefUrl(e.target.value)} placeholder="https://raw.githubusercontent.com/.../td.json" />
+                <label htmlFor="module3createwizard-field-4">URL của Thing Description</label>
+                <input id="module3createwizard-field-4" type="text" value={defUrl} onChange={e => setDefUrl(e.target.value)} placeholder="https://raw.githubusercontent.com/.../td.json" />
               </div>
             ) : (
               <div className="form-group">
-                <label>Nội dung JSON-LD</label>
-                <textarea rows={10} value={defJson} onChange={e => setDefJson(e.target.value)} style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} />
+                <label htmlFor="module3createwizard-field-5">Nội dung JSON-LD</label>
+                <textarea id="module3createwizard-field-5" rows={10} value={defJson} onChange={e => setDefJson(e.target.value)} style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} />
               </div>
             )}
 
             <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
               <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Cấu trúc Digital Twin</h3>
               <div className="form-group">
-                <label>Goal Agent ID <span style={{ color: 'var(--danger)' }}>*</span></label>
-                <input
+                <label htmlFor="module3createwizard-field-6">Goal Agent ID <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <input id="module3createwizard-field-6"
                   type="text"
                   value={goalAgentId}
                   onChange={event => {
@@ -489,12 +476,12 @@ const Module3CreateWizard = () => {
                   disabled={goalAgentChecking}
                 />
                 {goalAgentTouched && !normalizedGoalAgentId && (
-                  <small style={{ color: '#fca5a5', display: 'block', marginTop: '0.5rem' }}>
+                  <small style={{ color: '#ba374b', display: 'block', marginTop: '0.5rem' }}>
                     Goal Agent ID là bắt buộc.
                   </small>
                 )}
                 {displayedGoalAgentAvailability && !displayedGoalAgentAvailability.available && (
-                  <small style={{ color: '#fca5a5', display: 'block', marginTop: '0.5rem' }}>
+                  <small style={{ color: '#ba374b', display: 'block', marginTop: '0.5rem' }}>
                     ID này đã được sử dụng bởi {displayedGoalAgentAvailability.conflictingThingId}.
                   </small>
                 )}
@@ -509,26 +496,26 @@ const Module3CreateWizard = () => {
                   </small>
                 )}
                 {goalAgentCheckError && (
-                  <small style={{ color: '#fca5a5', display: 'block', marginTop: '0.5rem' }}>
+                  <small style={{ color: '#ba374b', display: 'block', marginTop: '0.5rem' }}>
                     {goalAgentCheckError}
                   </small>
                 )}
               </div>
 
               <div className="form-group">
-                <label>Digital Twin thành phần (không bắt buộc)</label>
+                <label htmlFor="wizard-component-select">Digital Twin thành phần (không bắt buộc)</label>
                 {catalogLoading ? (
                   <div style={{ color: 'var(--text-muted)', padding: '0.75rem 0' }}>Đang tải danh sách Digital Twin…</div>
                 ) : catalogError ? (
                   <div style={{ padding: '0.75rem', border: '1px solid var(--danger)', borderRadius: '6px', background: 'rgba(239,68,68,0.1)' }}>
-                    <div style={{ color: '#fca5a5', marginBottom: '0.75rem' }}>{catalogError}</div>
-                    <button type="button" className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => loadThingCatalog()}>
+                    <div style={{ color: '#ba374b', marginBottom: '0.75rem' }}>{catalogError}</div>
+                    <button type="button" className="btn" style={{ background: 'var(--surface-subtle)' }} onClick={() => loadThingCatalog()}>
                       ↻ Thử tải lại
                     </button>
                   </div>
                 ) : (
                   <>
-                    <select
+                    <select id="wizard-component-select"
                       value=""
                       onChange={event => {
                         const selectedThingId = event.target.value;
@@ -557,7 +544,7 @@ const Module3CreateWizard = () => {
                     {selectedComponentThingIds.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
                         {selectedComponentThingIds.map(componentThingId => (
-                          <span key={componentThingId} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 0.65rem', borderRadius: '999px', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.45)', color: '#bfdbfe', maxWidth: '100%' }}>
+                          <span key={componentThingId} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 0.65rem', borderRadius: '999px', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.45)', color: '#315be8', maxWidth: '100%' }}>
                             <span style={{ wordBreak: 'break-all' }}>{componentThingId}</span>
                             <button
                               type="button"
@@ -565,7 +552,7 @@ const Module3CreateWizard = () => {
                               onClick={() => setSelectedComponentThingIds(current => (
                                 current.filter(selectedThingId => selectedThingId !== componentThingId)
                               ))}
-                              style={{ border: 0, background: 'transparent', color: '#fca5a5', cursor: 'pointer', fontSize: '1rem' }}
+                              style={{ border: 0, background: 'transparent', color: '#ba374b', cursor: 'pointer', fontSize: '1rem' }}
                             >
                               ×
                             </button>
@@ -583,22 +570,22 @@ const Module3CreateWizard = () => {
         {/* Step 3: Policy */}
         {step === 3 && (
           <div className="step-content">
-            <h2 style={{ marginBottom: '1.5rem' }}>Bước 3: Phân quyền (Policy)</h2>
+            <h2 style={{ marginBottom: '1.5rem' }}>Phân quyền truy cập</h2>
             <div className="form-group">
-              <label>Policy ID</label>
-              <input type="text" value={policyId} onChange={e => setPolicyId(e.target.value)} />
+              <label htmlFor="module3createwizard-field-7">Policy ID</label>
+              <input id="module3createwizard-field-7" type="text" value={policyId} onChange={e => setPolicyId(e.target.value)} />
             </div>
             <div className="form-group">
-              <label>Template Phân Quyền</label>
-              <select value={policyTemplate} onChange={e => setPolicyTemplate(e.target.value)}>
+              <label htmlFor="module3createwizard-field-8">Mẫu phân quyền</label>
+              <select id="module3createwizard-field-8" value={policyTemplate} onChange={e => setPolicyTemplate(e.target.value)}>
                 <option value="default">Mặc định (Full Access cho auth user)</option>
                 <option value="read-only">Chỉ xem (Read-Only Viewer)</option>
               </select>
             </div>
             
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '4px' }}>
-               <h4 style={{ color: 'var(--text-muted)', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Preview Policy JSON:</h4>
-               <pre style={{ color: '#a78bfa', fontSize: '0.8rem', overflowX: 'auto' }}>
+            <div style={{ background: 'rgba(229, 235, 245, 0.42)', padding: '1rem', borderRadius: '4px' }}>
+               <h4 style={{ color: 'var(--text-muted)', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Nội dung phân quyền</h4>
+               <pre style={{ color: '#7160ae', fontSize: '0.8rem', overflowX: 'auto' }}>
                  {JSON.stringify(POLICY_TEMPLATES[policyTemplate], null, 2)}
                </pre>
             </div>
@@ -608,10 +595,10 @@ const Module3CreateWizard = () => {
         {/* Step 4: Review */}
         {step === 4 && (
           <div className="step-content">
-            <h2 style={{ marginBottom: '1.5rem' }}>Bước 4: Xác nhận và Khởi tạo</h2>
+            <h2 style={{ marginBottom: '1.5rem' }}>Kiểm tra bản sao số</h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>Kiểm tra lại payload sẽ gửi đến Ditto API để tạo Thing:</p>
-            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '6px', border: '1px solid var(--border-color)', marginBottom: '2rem' }}>
-              <pre style={{ color: '#6ee7b7', fontSize: '0.85rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+            <div style={{ background: 'rgba(229, 235, 245, 0.42)', padding: '1rem', borderRadius: '6px', border: '1px solid var(--border-color)', marginBottom: '2rem' }}>
+              <pre style={{ color: '#168267', fontSize: '0.85rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
 {`PUT /api/digital-twins/${thingId}
 
 ${JSON.stringify(buildFinalPayload(), null, 2)}`}
@@ -622,8 +609,8 @@ ${JSON.stringify(buildFinalPayload(), null, 2)}`}
 
         {/* Actions */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
-          <button className="btn" style={{ background: step === 1 ? 'transparent' : 'rgba(255,255,255,0.1)', opacity: step === 1 ? 0 : 1 }} onClick={prevStep} disabled={step === 1 || loading}>
-            ← Quay lại
+          <button className="btn" style={{ background: step === 1 ? 'transparent' : 'rgba(81, 107, 145, 0.18)', opacity: step === 1 ? 0 : 1 }} onClick={prevStep} disabled={step === 1 || loading}>
+            Quay lại
           </button>
           
           {step < 4 ? (
@@ -632,7 +619,7 @@ ${JSON.stringify(buildFinalPayload(), null, 2)}`}
               onClick={nextStep}
               disabled={loading || (step === 2 && goalAgentChecking)}
             >
-              Tiếp tục →
+              Tiếp tục
             </button>
           ) : (
             <button className="btn btn-success" onClick={handleCreate} disabled={loading}>
